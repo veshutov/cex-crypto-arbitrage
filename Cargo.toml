@@ -11,11 +11,11 @@ path = "src/main.rs"
 name = "server"
 
 [dependencies]
-tokio = { version = "1.43.0", features = ["full"] }
-axum = "0.8.1"
-hyper = "1.5.2"
+tokio = { version = "1.45.1", features = ["full"] }
+axum = "0.8.4"
+hyper = "1.6.0"
 tower = { version = "0.5.2", features = [] }
-tower-http = { version = "0.6.2", features = [
+tower-http = { version = "0.6.6", features = [
     "trace",
     "timeout",
     "request-id",
@@ -23,7 +23,7 @@ tower-http = { version = "0.6.2", features = [
     "normalize-path",
 ] }
 
-sqlx = { version = "0.8.3", features = [
+sqlx = { version = "0.8.6", features = [
     "postgres",
     "runtime-tokio-rustls",
     "macros",
@@ -36,15 +36,19 @@ sqlx = { version = "0.8.3", features = [
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["json", "env-filter"] }
 
-reqwest = { version = "0.12.12", default-features = false, features = [
+reqwest = { version = "0.12.19", default-features = false, features = [
     "json",
     "rustls-tls",
 ] }
-chrono = { version = "0.4.39", features = ["serde"] }
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.135"
-uuid = { version = "1.11.1", features = ["v7", "serde"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+uuid = { version = "1.17.0", features = ["v7", "serde"] }
 dotenvy = "0.15.7"
 
-anyhow = "1.0.95"
-thiserror = "2.0.11"
+anyhow = "1.0.98"
+thiserror = "2.0.12"
+
+# Exchange-specific dependencies
+async-trait = "0.1.88"
+futures = "0.3.31"

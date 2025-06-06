@@ -21,6 +21,24 @@ pub struct Configuration {
     pub db_dsn: String,
     /// The maximum number of connections for the PostgreSQL pool.
     pub db_pool_max_size: u32,
+
+    /// The API key for the Bybit exchange.
+    pub bybit_api_key: String,
+    /// The API secret for the Bybit exchange.
+    pub bybit_api_secret: String,
+    /// Taker fee for the Bybit exchange.
+    pub bybit_taker_fee: f64,
+    /// Maker fee for the Bybit exchange.
+    pub bybit_maker_fee: f64,
+
+    /// The API key for the Kucoin exchange.
+    pub kucoin_api_key: String,
+    /// The API secret for the Kucoin exchange.
+    pub kucoin_api_secret: String,
+    /// Taker fee for the Kucoin exchange.
+    pub kucoin_taker_fee: f64,
+    /// Maker fee for the Kucoin exchange.
+    pub kucoin_maker_fee: f64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -48,12 +66,41 @@ impl Configuration {
 
         let listen_address = SocketAddr::from((Ipv6Addr::UNSPECIFIED, app_port));
 
+        let bybit_api_key = env_var("BYBIT_API_KEY");
+        let bybit_api_secret = env_var("BYBIT_API_SECRET");
+        let kucoin_api_key = env_var("KUCOIN_API_KEY");
+        let kucoin_api_secret = env_var("KUCOIN_API_SECRET");
+
+        let bybit_taker_fee = env_var("BYBIT_TAKER_FEE")
+            .parse::<f64>()
+            .expect("Unable to parse the value of the BYBIT_TAKER_FEE environment variable. Please make sure it is a valid float.");
+
+        let bybit_maker_fee = env_var("BYBIT_MAKER_FEE")
+            .parse::<f64>()
+            .expect("Unable to parse the value of the BYBIT_MAKER_FEE environment variable. Please make sure it is a valid float.");
+
+        let kucoin_taker_fee = env_var("KUCOIN_TAKER_FEE")
+            .parse::<f64>()
+            .expect("Unable to parse the value of the KUCOIN_TAKER_FEE environment variable. Please make sure it is a valid float.");
+
+        let kucoin_maker_fee = env_var("KUCOIN_MAKER_FEE")
+            .parse::<f64>()
+            .expect("Unable to parse the value of the KUCOIN_MAKER_FEE environment variable. Please make sure it is a valid float.");
+
         Arc::new(Configuration {
             env,
             listen_address,
             app_port,
             db_dsn,
             db_pool_max_size,
+            bybit_api_key,
+            bybit_api_secret,
+            kucoin_api_key,
+            kucoin_api_secret,
+            bybit_taker_fee,
+            bybit_maker_fee,
+            kucoin_taker_fee,
+            kucoin_maker_fee,
         })
     }
 

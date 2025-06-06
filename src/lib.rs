@@ -1,4 +1,9 @@
-use axum::Router;
+use axum::{
+    routing::get,
+    Router,
+};
+use std::sync::Arc;
+use tower_http::cors::CorsLayer;
 
 pub mod api_error;
 pub mod cfg;
@@ -6,18 +11,22 @@ pub mod db;
 pub mod middleware;
 pub mod routes;
 pub mod telemetry;
+pub mod exchanges;
 
 pub use cfg::*;
 pub use db::*;
+
+use crate::exchanges::{BybitExchange, Exchange, KuCoinExchange};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Db,
     pub cfg: Config,
+    pub exchanges: Arc<Vec<Box<dyn Exchange>>>,
 }
 
-pub fn router(cfg: Config, db: Db) -> Router {
-    let app_state = AppState { db, cfg };
+pub fn router(cfg: Config, db: Db, exchanges: Vec<Box<dyn Exchange>>) -> Router {
+    let app_state = AppState { db, cfg, exchanges: Arc::new(exchanges) };
 
     // Middleware that adds high level tracing to a Service.
     // Trace comes with good defaults but also supports customizing many aspects of the output:
