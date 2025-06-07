@@ -1,8 +1,20 @@
 mod bybit;
 mod kucoin;
+mod okx;
+mod bitget;
+mod htx;
+mod gate;
+mod mexc;
+mod bingx;
 
 pub use bybit::BybitExchange;
 pub use kucoin::KuCoinExchange;
+pub use okx::OkxExchange;
+pub use bitget::BitgetExchange;
+pub use htx::HtxExchange;
+pub use gate::GateExchange;
+pub use mexc::MexcExchange;
+pub use bingx::BingxExchange;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -43,10 +55,16 @@ pub struct ArbitrageOpportunity {
     pub total_fees: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TickerData {
+    pub symbol: String,
+    pub best_bid_price: f64,
+    pub best_ask_price: f64,
+}
+
 #[async_trait]
 pub trait Exchange: Send + Sync {
     fn name(&self) -> &'static str;
-    async fn get_futures_tickers(&self) -> Result<Vec<String>, ExchangeError>;
-    async fn get_ticker_price(&self, symbol: &str) -> Result<f64, ExchangeError>;
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
     fn get_fees(&self, order_type: OrderType) -> ExchangeFee;
 } 

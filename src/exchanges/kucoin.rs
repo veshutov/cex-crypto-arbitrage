@@ -1,4 +1,4 @@
-use super::{Exchange, ExchangeError, ExchangeFee, OrderType};
+use super::{Exchange, ExchangeError, ExchangeFee, OrderType, TickerData};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
@@ -29,45 +29,42 @@ impl Exchange for KuCoinExchange {
         "kucoin"
     }
 
-    async fn get_futures_tickers(&self) -> Result<Vec<String>, ExchangeError> {
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
         let response = self.client
-            .get("https://api-futures.kucoin.com/api/v1/contracts/active")
+            .get("https://api-futures.kucoin.com/api/v1/allTickers")
             .send()
             .await?;
 
         let data: Value = response.json().await?;
         
-        let symbols = data["data"]
+        // Check if the response is successful
+        if data["code"].as_str().unwrap_or("") != "200000" {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["msg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let tickers = data["data"]
             .as_array()
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .filter_map(|item| {
-                if item["isActive"].as_bool()? {
-                    Some(item["symbol"].as_str()?.to_string())
-                } else {
-                    None
-                }
+                let symbol = item["symbol"].as_str()?;
+                
+                // Parse bid and ask prices
+                let best_bid = item["bestBidPrice"].as_str()?.parse::<f64>().ok()?;
+                let best_ask = item["bestAskPrice"].as_str()?.parse::<f64>().ok()?;
+
+                Some(TickerData {
+                    symbol: symbol.to_string(),
+                    best_bid_price: best_bid,
+                    best_ask_price: best_ask,
+                })
             })
             .collect();
 
-        Ok(symbols)
-    }
-
-    async fn get_ticker_price(&self, symbol: &str) -> Result<f64, ExchangeError> {
-        let response = self.client
-            .get(&format!("https://api-futures.kucoin.com/api/v1/ticker?symbol={}", symbol))
-            .header("KC-API-KEY", self.api_key.clone())
-            .header("KC-API-SECRET", self.api_secret.clone())
-            .send()
-            .await?;
-
-        let data: Value = response.json().await?;
-        
-        data["data"]["price"]
-            .as_str()
-            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid price format".to_string()))?
-            .parse::<f64>()
-            .map_err(|_| ExchangeError::InvalidResponse("Invalid price value".to_string()))
+        Ok(tickers)
     }
 
     fn get_fees(&self, order_type: OrderType) -> ExchangeFee {

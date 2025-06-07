@@ -1,4 +1,4 @@
-use super::{Exchange, ExchangeError, ExchangeFee, OrderType};
+use super::{Exchange, ExchangeError, ExchangeFee, OrderType, TickerData};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
@@ -29,45 +29,42 @@ impl Exchange for BybitExchange {
         "bybit"
     }
 
-    async fn get_futures_tickers(&self) -> Result<Vec<String>, ExchangeError> {
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
         let response = self.client
-            .get("https://api.bybit.com/v5/market/instruments-info?category=linear")
+            .get("https://api.bybit.com/v5/market/tickers?category=linear")
             .send()
             .await?;
 
         let data: Value = response.json().await?;
         
-        let symbols = data["result"]["list"]
+        // Check if the response is successful
+        if data["retCode"].as_i64().unwrap_or(1) != 0 {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["retMsg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let tickers = data["result"]["list"]
             .as_array()
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .filter_map(|item| {
-                if item["status"].as_str()? == "Trading" {
-                    Some(item["symbol"].as_str()?.to_string())
-                } else {
-                    None
-                }
+                let symbol = item["symbol"].as_str()?;
+                
+                // Parse bid and ask prices
+                let best_bid = item["bid1Price"].as_str()?.parse::<f64>().ok()?;
+                let best_ask = item["ask1Price"].as_str()?.parse::<f64>().ok()?;
+
+                Some(TickerData {
+                    symbol: symbol.to_string(),
+                    best_bid_price: best_bid,
+                    best_ask_price: best_ask,
+                })
             })
             .collect();
 
-        Ok(symbols)
-    }
-
-    async fn get_ticker_price(&self, symbol: &str) -> Result<f64, ExchangeError> {
-        let response = self.client
-            .get(&format!("https://api.bybit.com/v5/market/tickers?category=linear&symbol={}", symbol))
-            .header("api-key", self.api_key.clone())
-            .header("api-secret", self.api_secret.clone())
-            .send()
-            .await?;
-
-        let data: Value = response.json().await?;
-        
-        data["result"]["list"][0]["lastPrice"]
-            .as_str()
-            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid price format".to_string()))?
-            .parse::<f64>()
-            .map_err(|_| ExchangeError::InvalidResponse("Invalid price value".to_string()))
+        Ok(tickers)
     }
 
     fn get_fees(&self, order_type: OrderType) -> ExchangeFee {

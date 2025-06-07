@@ -1,4 +1,4 @@
-use server::{exchanges::{BybitExchange, Exchange, KuCoinExchange}, telemetry, Configuration, Db};
+use server::{exchanges::{BybitExchange, Exchange, KuCoinExchange, OkxExchange, BitgetExchange, HtxExchange, GateExchange, MexcExchange, BingxExchange}, telemetry, Configuration, Db};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -36,6 +36,42 @@ async fn main() {
             cfg.kucoin_api_secret.clone(),
             cfg.kucoin_taker_fee,
             cfg.kucoin_maker_fee,
+        )),
+        Box::new(OkxExchange::new(
+            cfg.okx_api_key.clone(),
+            cfg.okx_api_secret.clone(),
+            cfg.okx_taker_fee,
+            cfg.okx_maker_fee,
+        )),
+        Box::new(BitgetExchange::new(
+            cfg.bitget_api_key.clone(),
+            cfg.bitget_api_secret.clone(),
+            cfg.bitget_taker_fee,
+            cfg.bitget_maker_fee,
+        )),
+        Box::new(HtxExchange::new(
+            cfg.htx_api_key.clone(),
+            cfg.htx_api_secret.clone(),
+            cfg.htx_taker_fee,
+            cfg.htx_maker_fee,
+        )),
+        Box::new(GateExchange::new(
+            cfg.gate_api_key.clone(),
+            cfg.gate_api_secret.clone(),
+            cfg.gate_taker_fee,
+            cfg.gate_maker_fee,
+        )),
+        Box::new(MexcExchange::new(
+            cfg.mexc_api_key.clone(),
+            cfg.mexc_api_secret.clone(),
+            cfg.mexc_taker_fee,
+            cfg.mexc_maker_fee,
+        )),
+        Box::new(BingxExchange::new(
+            cfg.bingx_api_key.clone(),
+            cfg.bingx_api_secret.clone(),
+            cfg.bingx_taker_fee,
+            cfg.bingx_maker_fee,
         )),
     ];
 
