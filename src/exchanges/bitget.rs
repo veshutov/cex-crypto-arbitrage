@@ -1,83 +1,83 @@
-use async_trait::async_trait;
-use reqwest::Client;
-use serde_json::Value;
+// use async_trait::async_trait;
+// use reqwest::Client;
+// use serde_json::Value;
 
-use crate::exchanges::{Exchange, ExchangeError, ExchangeFee, TickerData, ExchangeName};
+// use crate::exchanges::{Exchange, ExchangeError, ExchangeFee, TickerData, ExchangeName};
 
-pub struct BitgetExchange {
-    client: Client,
-    api_key: String,
-    api_secret: String,
-    taker_fee: f64,
-    maker_fee: f64,
-}
+// pub struct BitgetExchange {
+//     client: Client,
+//     api_key: String,
+//     api_secret: String,
+//     taker_fee: f64,
+//     maker_fee: f64,
+// }
 
-impl BitgetExchange {
-    pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
-        Self {
-            client: Client::new(),
-            api_key,
-            api_secret,
-            taker_fee,
-            maker_fee,
-        }
-    }
-}
+// impl BitgetExchange {
+//     pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
+//         Self {
+//             client: Client::new(),
+//             api_key,
+//             api_secret,
+//             taker_fee,
+//             maker_fee,
+//         }
+//     }
+// }
 
-#[async_trait]
-impl Exchange for BitgetExchange {
-    fn name(&self) -> ExchangeName {
-        ExchangeName::BitGet
-    }
+// #[async_trait]
+// impl Exchange for BitgetExchange {
+//     fn name(&self) -> ExchangeName {
+//         ExchangeName::BitGet
+//     }
 
-    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
-        let url = "https://api.bitget.com/api/v2/mix/market/tickers?productType=COIN-FUTURES";
-        let response = self.client.get(url).send().await?;
+//     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
+//         let url = "https://api.bitget.com/api/v2/mix/market/tickers?productType=COIN-FUTURES";
+//         let response = self.client.get(url).send().await?;
         
-        if !response.status().is_success() {
-            return Err(ExchangeError::InvalidResponse(format!(
-                "Failed to get tickers: {}",
-                response.status()
-            )));
-        }
+//         if !response.status().is_success() {
+//             return Err(ExchangeError::InvalidResponse(format!(
+//                 "Failed to get tickers: {}",
+//                 response.status()
+//             )));
+//         }
 
-        let json: Value = response.json().await?;
-        let data = json["data"].as_array().ok_or_else(|| {
-            ExchangeError::InvalidResponse("Invalid response format".to_string())
-        })?;
+//         let json: Value = response.json().await?;
+//         let data = json["data"].as_array().ok_or_else(|| {
+//             ExchangeError::InvalidResponse("Invalid response format".to_string())
+//         })?;
 
-        let mut tickers = Vec::new();
-        for item in data {
-            let symbol = item["symbol"]
-                .as_str()
-                .ok_or_else(|| ExchangeError::InvalidResponse("Missing symbol".to_string()))?
-                .to_string();
+//         let mut tickers = Vec::new();
+//         for item in data {
+//             let symbol = item["symbol"]
+//                 .as_str()
+//                 .ok_or_else(|| ExchangeError::InvalidResponse("Missing symbol".to_string()))?
+//                 .to_string();
 
-            let best_bid = item["bidPr"]
-                .as_str()
-                .and_then(|s| s.parse::<f64>().ok())
-                .ok_or_else(|| ExchangeError::InvalidResponse("Invalid bid price".to_string()))?;
+//             let best_bid = item["bidPr"]
+//                 .as_str()
+//                 .and_then(|s| s.parse::<f64>().ok())
+//                 .ok_or_else(|| ExchangeError::InvalidResponse("Invalid bid price".to_string()))?;
 
-            let best_ask = item["askPr"]
-                .as_str()
-                .and_then(|s| s.parse::<f64>().ok())
-                .ok_or_else(|| ExchangeError::InvalidResponse("Invalid ask price".to_string()))?;
+//             let best_ask = item["askPr"]
+//                 .as_str()
+//                 .and_then(|s| s.parse::<f64>().ok())
+//                 .ok_or_else(|| ExchangeError::InvalidResponse("Invalid ask price".to_string()))?;
 
-            tickers.push(TickerData {
-                symbol,
-                best_bid_price: best_bid,
-                best_ask_price: best_ask,
-                volume_24h: 1.0,
-            });
-        }
+//             tickers.push(TickerData {
+//                 symbol,
+//                 best_bid_price: best_bid,
+//                 best_ask_price: best_ask,
+//                 volume_24h: 1.0,
+//             });
+//         }
 
-        Ok(tickers)
-    }
+//         Ok(tickers)
+//     }
 
-    fn get_fees(&self) -> ExchangeFee {
-        ExchangeFee {
-            maker_fee: self.maker_fee,
-            taker_fee: self.taker_fee,
-        }
-    }
-} 
+//     fn get_fees(&self) -> ExchangeFee {
+//         ExchangeFee {
+//             maker_fee: self.maker_fee,
+//             taker_fee: self.taker_fee,
+//         }
+//     }
+// } 

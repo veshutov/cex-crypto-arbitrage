@@ -1,6 +1,6 @@
 use server::{
     exchanges::{self, BybitExchange, Exchange, GateExchange, KuCoinExchange},
-    strategy::arbitrage::start_arbitrage_checker,
+    strategy::arbitrage::{start_arbitrage_checker_ws},
     telemetry, AppState, Configuration, Db,
 };
 use std::sync::Arc;
@@ -29,25 +29,25 @@ async fn main() {
     tracing::debug!("Running migrations");
     db.migrate().await.expect("Failed to run migrations");
 
-    let exchanges: Vec<Box<dyn Exchange>> = vec![
-        Box::new(BybitExchange::new(
+    let exchanges = (
+        BybitExchange::new(
             cfg.bybit_api_key.clone(),
             cfg.bybit_api_secret.clone(),
             cfg.bybit_taker_fee,
             cfg.bybit_maker_fee,
-        )),
-        Box::new(KuCoinExchange::new(
+        ),
+        KuCoinExchange::new(
             cfg.kucoin_api_key.clone(),
             cfg.kucoin_api_secret.clone(),
             cfg.kucoin_taker_fee,
             cfg.kucoin_maker_fee,
-        )),
-        Box::new(GateExchange::new(
+        ),
+        GateExchange::new(
             cfg.gate_api_key.clone(),
             cfg.gate_api_secret.clone(),
             cfg.gate_taker_fee,
             cfg.gate_maker_fee,
-        )),
+        )
         // Box::new(OkxExchange::new(
         //     cfg.okx_api_key.clone(),
         //     cfg.okx_api_secret.clone(),
@@ -78,7 +78,7 @@ async fn main() {
         //     cfg.bingx_taker_fee,
         //     cfg.bingx_maker_fee,
         // )),
-    ];
+    );
     let exchanges_arc = Arc::new(exchanges);
 
     // Create app state
@@ -89,7 +89,8 @@ async fn main() {
     };
 
     // Start arbitrage checker in background
-    tokio::spawn(start_arbitrage_checker(app_state.clone()));
+    // tokio::spawn(start_arbitrage_checker(app_state.clone()));
+    tokio::spawn(start_arbitrage_checker_ws(app_state.clone()));
 
     // Spin up our server.
     let listen_address = app_state.cfg.listen_address;

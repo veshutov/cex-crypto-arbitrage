@@ -1,20 +1,20 @@
-mod bybit;
-mod kucoin;
-mod okx;
-mod bitget;
-mod htx;
-mod gate;
-mod mexc;
 mod bingx;
+mod bitget;
+mod bybit;
+mod gate;
+mod htx;
+mod kucoin;
+mod mexc;
+mod okx;
 
 pub use bybit::BybitExchange;
 pub use kucoin::KuCoinExchange;
-pub use okx::OkxExchange;
-pub use bitget::BitgetExchange;
-pub use htx::HtxExchange;
+// pub use okx::OkxExchange;
+// pub use bitget::BitgetExchange;
+// pub use htx::HtxExchange;
 pub use gate::GateExchange;
-pub use mexc::MexcExchange;
-pub use bingx::BingxExchange;
+// pub use mexc::MexcExchange;
+// pub use bingx::BingxExchange;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -63,11 +63,36 @@ pub struct TickerData {
     pub volume_24h: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderBookData {
+    pub symbol: String,
+    pub data_type: OrderBookDataType,
+    pub bids: Vec<(f64, f64)>, // (price, size)
+    pub asks: Vec<(f64, f64)>, // (price, size)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OrderBookDataType {
+    Snapshot,
+    Delta
+}
+
 #[async_trait]
 pub trait Exchange: Send + Sync {
     fn name(&self) -> ExchangeName;
-    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
+
     fn get_fees(&self) -> ExchangeFee;
+
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
+
+    async fn subscribe_orderbook<C, Fut>(
+        &self,
+        symbol: String,
+        callback: C,
+    ) -> Result<(), ExchangeError>
+    where
+        C: FnMut(OrderBookData) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
