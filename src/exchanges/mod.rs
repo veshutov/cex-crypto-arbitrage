@@ -47,8 +47,8 @@ pub struct ExchangeFee {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArbitrageOpportunity {
     pub symbol: String,
-    pub buy_exchange: String,
-    pub sell_exchange: String,
+    pub buy_exchange: ExchangeName,
+    pub sell_exchange: ExchangeName,
     pub buy_price: f64,
     pub sell_price: f64,
     pub potential_profit: f64,
@@ -64,7 +64,19 @@ pub struct TickerData {
 
 #[async_trait]
 pub trait Exchange: Send + Sync {
-    fn name(&self) -> &'static str;
+    fn name(&self) -> ExchangeName;
     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
-    fn get_fees(&self, order_type: OrderType) -> ExchangeFee;
-} 
+    fn get_fees(&self) -> ExchangeFee;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExchangeName {
+    Bybit,
+    Kucoin,
+    Gate,
+    Bingx,
+    BitGet,
+    Htx,
+    Mexc,
+    Okx,
+}

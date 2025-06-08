@@ -1,7 +1,8 @@
-use super::{Exchange, ExchangeError, ExchangeFee, OrderType, TickerData};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
+
+use crate::exchanges::{Exchange, ExchangeError, ExchangeFee, TickerData, ExchangeName};
 
 pub struct BybitExchange {
     client: Client,
@@ -25,8 +26,8 @@ impl BybitExchange {
 
 #[async_trait]
 impl Exchange for BybitExchange {
-    fn name(&self) -> &'static str {
-        "bybit"
+    fn name(&self) -> ExchangeName {
+        ExchangeName::Bybit
     }
 
     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
@@ -67,16 +68,10 @@ impl Exchange for BybitExchange {
         Ok(tickers)
     }
 
-    fn get_fees(&self, order_type: OrderType) -> ExchangeFee {
-        match order_type {
-            OrderType::Limit => ExchangeFee {
-                maker_fee: self.maker_fee,
-                taker_fee: self.taker_fee,
-            },
-            OrderType::Market => ExchangeFee {
-                maker_fee: self.maker_fee,
-                taker_fee: self.taker_fee,
-            },
+    fn get_fees(&self) -> ExchangeFee {
+        ExchangeFee {
+            maker_fee: self.maker_fee,
+            taker_fee: self.taker_fee,
         }
     }
 } 

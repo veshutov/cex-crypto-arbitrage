@@ -1,9 +1,7 @@
 use axum::{
-    routing::get,
     Router,
 };
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
 
 pub mod api_error;
 pub mod cfg;
@@ -16,7 +14,7 @@ pub mod exchanges;
 pub use cfg::*;
 pub use db::*;
 
-use crate::exchanges::{BybitExchange, Exchange, KuCoinExchange};
+use crate::exchanges::Exchange;
 
 #[derive(Clone)]
 pub struct AppState {

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 
-use crate::exchanges::{Exchange, ExchangeError, ExchangeFee, OrderType, TickerData};
+use crate::exchanges::{Exchange, ExchangeError, ExchangeFee, TickerData, ExchangeName};
 
 pub struct GateExchange {
     client: Client,
@@ -26,8 +26,8 @@ impl GateExchange {
 
 #[async_trait]
 impl Exchange for GateExchange {
-    fn name(&self) -> &'static str {
-        "gate"
+    fn name(&self) -> ExchangeName {
+        ExchangeName::Gate
     }
 
     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
@@ -73,16 +73,10 @@ impl Exchange for GateExchange {
         Ok(tickers)
     }
 
-    fn get_fees(&self, order_type: OrderType) -> ExchangeFee {
-        match order_type {
-            OrderType::Limit => ExchangeFee {
-                maker_fee: self.maker_fee,
-                taker_fee: self.taker_fee,
-            },
-            OrderType::Market => ExchangeFee {
-                maker_fee: self.maker_fee,
-                taker_fee: self.taker_fee,
-            },
+    fn get_fees(&self) -> ExchangeFee {
+        ExchangeFee {
+            maker_fee: self.maker_fee,
+            taker_fee: self.taker_fee,
         }
     }
 } 
