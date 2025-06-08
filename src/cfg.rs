@@ -22,6 +22,8 @@ pub struct Configuration {
     /// The maximum number of connections for the PostgreSQL pool.
     pub db_pool_max_size: u32,
 
+    pub min_volume_24h: f64,
+
     /// The API key for the Bybit exchange.
     pub bybit_api_key: String,
     /// The API secret for the Bybit exchange.
@@ -192,6 +194,10 @@ impl Configuration {
             .parse::<f64>()
             .expect("Unable to parse the value of the OKX_MAKER_FEE environment variable. Please make sure it is a valid float.");
 
+        let min_volume_24h = env_var("MIN_VOLUME_24H")
+            .parse::<f64>()
+            .expect("Unable to parse the value of the MIN_VOLUME_24H environment variable. Please make sure it is a valid float.");
+
         Arc::new(Configuration {
             env,
             listen_address,
@@ -230,6 +236,7 @@ impl Configuration {
             okx_api_secret,
             okx_taker_fee,
             okx_maker_fee,
+            min_volume_24h,
         })
     }
 

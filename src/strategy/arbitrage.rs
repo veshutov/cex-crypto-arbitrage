@@ -1,36 +1,70 @@
-use axum::{
-    extract::State,
-    Json,
-};
-use serde::Serialize;
-use uuid::Uuid;
+use futures::future::join_all;
 use std::collections::HashMap;
+use std::time::Instant;
+use tokio::time::{sleep, Duration};
 
-use crate::{exchanges::{ArbitrageOpportunity, ExchangeFee, ExchangeName, TickerData}, AppState};
+use crate::{
+    exchanges::{ArbitrageOpportunity, ExchangeFee, ExchangeName, TickerData},
+    AppState,
+};
 
-#[derive(Debug, Serialize)]
-pub struct ArbitrageResponse {
-    pub opportunities: Vec<ArbitrageOpportunity>,
+pub async fn start_arbitrage_checker(state: AppState) {
+    loop {
+        let now: Instant = Instant::now();
+        let _opportunities = check_arbitrage_opportunities(&state).await;
+        let elapsed = now.elapsed();
+        println!("Check duration: {:.2?}", elapsed);
+        sleep(Duration::from_secs(5)).await;
+    }
 }
 
-pub async fn get_arbitrage_opportunities(
-    State(state): State<AppState>,
-) -> Json<ArbitrageResponse> {
+async fn check_arbitrage_opportunities(state: &AppState) -> Vec<ArbitrageOpportunity> {
     let mut opportunities = Vec::new();
-    let exchanges = state.exchanges;
+    let exchanges = state.exchanges.clone();
 
     // Get all tickers with prices from both exchanges
-    let mut all_tickers_map: HashMap<String, Vec<(ExchangeName, TickerData, ExchangeFee)>> = HashMap::new();
-    
-    for exchange in exchanges.iter() {
-        if let Ok(tickers) = exchange.get_futures_tickers().await {
-            println!("tickers size on {:?} exchange: {:?}", exchange.name(), tickers.len());
+    let mut all_tickers_map: HashMap<String, Vec<(ExchangeName, TickerData, ExchangeFee)>> =
+        HashMap::new();
+
+    // Run exchange requests in parallel, but measure each exchange call duration individually
+    let ticker_futures: Vec<_> = exchanges
+        .iter()
+        .map(|exchange| {
+            let name = exchange.name();
+            async move {
+                let start = Instant::now();
+                let result = exchange.get_futures_tickers().await;
+                let duration = start.elapsed();
+                println!("Exchange {:?} request duration: {:.2?}", name, duration);
+                result
+            }
+        })
+        .collect();
+
+    let now: Instant = Instant::now();
+    let ticker_results = join_all(ticker_futures).await;
+    let elapsed = now.elapsed();
+    println!("Exchanges requests duration: {:.2?}", elapsed);
+
+    for (exchange, result) in exchanges.iter().zip(ticker_results) {
+        if let Ok(tickers) = result {
+            println!(
+                "tickers size on {:?} exchange: {:?}",
+                exchange.name(),
+                tickers.len()
+            );
             for ticker in tickers {
+                if ticker.volume_24h < state.cfg.min_volume_24h {
+                    continue;
+                }
                 let fee = exchange.get_fees();
                 let symbol = convert_symbol(ticker.symbol.clone(), exchange.name());
-                
+
                 // Group tickers by symbol
-                if let Some((_, tickers)) = all_tickers_map.iter_mut().find(|(s, _)| s.to_string() == symbol) {
+                if let Some((_, tickers)) = all_tickers_map
+                    .iter_mut()
+                    .find(|(s, _)| s.to_string() == symbol)
+                {
                     tickers.push((exchange.name(), ticker, fee));
                 } else {
                     all_tickers_map.insert(symbol, vec![(exchange.name(), ticker, fee)]);
@@ -39,7 +73,13 @@ pub async fn get_arbitrage_opportunities(
         }
     }
 
-    println!("tickers on both exchanges: {:?}", all_tickers_map.iter().filter(|(_, tickers)| tickers.len() == 2).count());
+    println!(
+        "tickers on both exchanges: {:?}",
+        all_tickers_map
+            .iter()
+            .filter(|(_, tickers)| tickers.len() > 1)
+            .count()
+    );
 
     // Check each symbol for arbitrage opportunities
     for (symbol, tickers) in all_tickers_map {
@@ -51,12 +91,16 @@ pub async fn get_arbitrage_opportunities(
 
                 // Check if we can buy on exchange1 and sell on exchange2
                 let buy_on_1_sell_on_2 = ticker1.best_ask_price < ticker2.best_bid_price;
-                let total_fee1 = (ticker1.best_ask_price * fee1.maker_fee + ticker2.best_bid_price * fee2.maker_fee) * 2.0;
+                let total_fee1 = (ticker1.best_ask_price * fee1.maker_fee
+                    + ticker2.best_bid_price * fee2.maker_fee)
+                    * 2.0;
                 let profit1 = ticker2.best_bid_price - ticker1.best_ask_price - total_fee1;
 
                 // Check if we can buy on exchange2 and sell on exchange1
                 let buy_on_2_sell_on_1 = ticker2.best_ask_price < ticker1.best_bid_price;
-                let total_fee2 = (ticker2.best_ask_price * fee2.maker_fee + ticker1.best_bid_price * fee1.maker_fee) * 2.0;
+                let total_fee2 = (ticker2.best_ask_price * fee2.maker_fee
+                    + ticker1.best_bid_price * fee1.maker_fee)
+                    * 2.0;
                 let profit2 = ticker1.best_bid_price - ticker2.best_ask_price - total_fee2;
 
                 if buy_on_1_sell_on_2 && profit1 > 0.0 {
@@ -88,12 +132,17 @@ pub async fn get_arbitrage_opportunities(
 
     opportunities.sort_by(|a, b| b.potential_profit.total_cmp(&a.potential_profit));
 
-    opportunities.iter().for_each(|o| {
-        println!("symbol: {}, profit: {}, buy: {:?}, sell: {:?}", o.symbol, o.potential_profit, o.buy_exchange, o.sell_exchange);
+    opportunities.iter().take(10).for_each(|o| {
+        println!(
+            "symbol: {}, profit: {}, buy: {:?}, sell: {:?}",
+            o.symbol, o.potential_profit, o.buy_exchange, o.sell_exchange
+        );
     });
 
-    Json(ArbitrageResponse { opportunities })
-} 
+    println!("------------------------------------------------------------------");
+
+    opportunities
+}
 
 fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {
     match exchange {

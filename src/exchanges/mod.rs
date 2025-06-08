@@ -60,6 +60,7 @@ pub struct TickerData {
     pub symbol: String,
     pub best_bid_price: f64,
     pub best_ask_price: f64,
+    pub volume_24h: f64,
 }
 
 #[async_trait]

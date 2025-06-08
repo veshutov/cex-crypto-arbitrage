@@ -42,33 +42,27 @@ impl Exchange for GateExchange {
         }
 
         let json: Value = response.json().await?;
-        let data = json.as_array().ok_or_else(|| {
-            ExchangeError::InvalidResponse("Invalid response format".to_string())
-        })?;
 
-        let mut tickers = Vec::new();
-        for item in data {
-            let symbol = item["contract"]
-                .as_str()
-                .ok_or_else(|| ExchangeError::InvalidResponse("Missing symbol".to_string()))?
-                .to_string();
+        let tickers = json
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .filter_map(|item| {
+                let symbol = item["contract"].as_str()?;
+                
+                // Parse bid and ask prices
+                let best_bid = item["highest_bid"].as_str()?.parse::<f64>().ok()?;
+                let best_ask = item["lowest_ask"].as_str()?.parse::<f64>().ok()?;
+                let volume_24h = item["volume_24h"].as_str()?.parse::<f64>().ok()?;
 
-            let best_bid = item["highest_bid"]
-                .as_str()
-                .and_then(|s| s.parse::<f64>().ok())
-                .ok_or_else(|| ExchangeError::InvalidResponse("Invalid bid price".to_string()))?;
-
-            let best_ask = item["lowest_ask"]
-                .as_str()
-                .and_then(|s| s.parse::<f64>().ok())
-                .ok_or_else(|| ExchangeError::InvalidResponse("Invalid ask price".to_string()))?;
-
-            tickers.push(TickerData {
-                symbol,
-                best_bid_price: best_bid,
-                best_ask_price: best_ask,
-            });
-        }
+                Some(TickerData {
+                    symbol: symbol.to_string(),
+                    best_bid_price: best_bid,
+                    best_ask_price: best_ask,
+                    volume_24h,
+                })
+            })
+            .collect();
 
         Ok(tickers)
     }

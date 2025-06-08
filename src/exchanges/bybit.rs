@@ -56,11 +56,13 @@ impl Exchange for BybitExchange {
                 // Parse bid and ask prices
                 let best_bid = item["bid1Price"].as_str()?.parse::<f64>().ok()?;
                 let best_ask = item["ask1Price"].as_str()?.parse::<f64>().ok()?;
+                let volume_24h = item["volume24h"].as_str()?.parse::<f64>().ok()?;
 
                 Some(TickerData {
                     symbol: symbol.to_string(),
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
+                    volume_24h,
                 })
             })
             .collect();

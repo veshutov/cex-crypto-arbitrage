@@ -61,6 +61,7 @@ impl Exchange for KuCoinExchange {
                     symbol: symbol.to_string(),
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
+                    volume_24h: 10_000_000.0,
                 })
             })
             .collect();

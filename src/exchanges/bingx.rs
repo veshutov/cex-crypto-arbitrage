@@ -67,6 +67,7 @@ impl Exchange for BingxExchange {
                 symbol,
                 best_bid_price: best_bid,
                 best_ask_price: best_ask,
+                volume_24h: 1.0,
             });
         }
 

@@ -1,4 +1,9 @@
-use server::{exchanges::{BybitExchange, Exchange, KuCoinExchange, OkxExchange, BitgetExchange, HtxExchange, GateExchange, MexcExchange, BingxExchange}, telemetry, Configuration, Db};
+use server::{
+    exchanges::{self, BybitExchange, Exchange, GateExchange, KuCoinExchange},
+    strategy::arbitrage::start_arbitrage_checker,
+    telemetry, AppState, Configuration, Db,
+};
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -26,7 +31,7 @@ async fn main() {
 
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
-            cfg.bybit_api_key.clone(),  
+            cfg.bybit_api_key.clone(),
             cfg.bybit_api_secret.clone(),
             cfg.bybit_taker_fee,
             cfg.bybit_maker_fee,
@@ -74,13 +79,25 @@ async fn main() {
         //     cfg.bingx_maker_fee,
         // )),
     ];
+    let exchanges_arc = Arc::new(exchanges);
+
+    // Create app state
+    let app_state = AppState {
+        db,
+        cfg,
+        exchanges: exchanges_arc,
+    };
+
+    // Start arbitrage checker in background
+    tokio::spawn(start_arbitrage_checker(app_state.clone()));
 
     // Spin up our server.
-    tracing::info!("Starting server on {}", cfg.listen_address);
-    let listener = TcpListener::bind(&cfg.listen_address)
+    let listen_address = app_state.cfg.listen_address;
+    tracing::info!("Starting server on {}", listen_address);
+    let listener = TcpListener::bind(listen_address)
         .await
         .expect("Failed to bind address");
-    let router = server::router(cfg, db, exchanges);
+    let router = server::router(app_state);
     axum::serve(listener, router)
         .await
         .expect("Failed to start server")

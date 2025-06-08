@@ -10,6 +10,7 @@ pub mod middleware;
 pub mod routes;
 pub mod telemetry;
 pub mod exchanges;
+pub mod strategy;
 
 pub use cfg::*;
 pub use db::*;
@@ -23,9 +24,7 @@ pub struct AppState {
     pub exchanges: Arc<Vec<Box<dyn Exchange>>>,
 }
 
-pub fn router(cfg: Config, db: Db, exchanges: Vec<Box<dyn Exchange>>) -> Router {
-    let app_state = AppState { db, cfg, exchanges: Arc::new(exchanges) };
-
+pub fn router(app_state: AppState) -> Router {
     // Middleware that adds high level tracing to a Service.
     // Trace comes with good defaults but also supports customizing many aspects of the output:
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html
