@@ -24,6 +24,11 @@ tower-http = { version = "0.6.6", features = [
 ] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["json", "env-filter"] }
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+reqwest = { version = "0.12.19", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 sqlx = { version = "0.8.6", features = [
     "postgres",
     "runtime-tokio-rustls",
@@ -34,10 +39,6 @@ sqlx = { version = "0.8.6", features = [
     "uuid",
 ] }
 
-reqwest = { version = "0.12.19", default-features = false, features = [
-    "json",
-    "rustls-tls",
-] }
 chrono = { version = "0.4.41", features = ["serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -47,6 +48,3 @@ anyhow = "1.0.98"
 thiserror = "2.0.12"
 async-trait = "0.1.88"
 futures = "0.3"
-
-tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
-url = "2.5.4"

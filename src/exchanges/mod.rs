@@ -95,7 +95,7 @@ pub trait Exchange: Send + Sync {
         Fut: std::future::Future<Output = ()> + Send;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum ExchangeName {
     Bybit,
     Kucoin,

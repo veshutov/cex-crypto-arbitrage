@@ -11,7 +11,8 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType, TickerData
+    Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType,
+    TickerData,
 };
 
 pub struct BybitExchange {
@@ -88,7 +89,11 @@ impl Exchange for BybitExchange {
         }
     }
 
-    async fn subscribe_orderbook<C, Fut>(&self, symbol: String, mut callback: C) -> Result<(), ExchangeError>
+    async fn subscribe_orderbook<C, Fut>(
+        &self,
+        symbol: String,
+        mut callback: C,
+    ) -> Result<(), ExchangeError>
     where
         C: FnMut(OrderBookData) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send,
@@ -140,14 +145,14 @@ impl Exchange for BybitExchange {
                                             Some((price, size))
                                         })
                                         .collect();
-                                    
+
                                     let data_type = match data["type"].as_str().unwrap() {
                                         "snapshot" => OrderBookDataType::Snapshot,
                                         "delta" => OrderBookDataType::Delta,
-                                        _ => panic!("Unknown order book data type")
+                                        _ => panic!("Unknown order book data type"),
                                     };
 
-                                    let s =  data["data"]["s"].as_str().unwrap().to_string();
+                                    let s = data["data"]["s"].as_str().unwrap().to_string();
 
                                     let orderbook: OrderBookData = OrderBookData {
                                         symbol: s,
@@ -166,7 +171,7 @@ impl Exchange for BybitExchange {
                         _ => {
                             println!("ELSE");
                             break;
-                        },
+                        }
                     }
                 }
             }

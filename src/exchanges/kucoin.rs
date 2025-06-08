@@ -9,7 +9,6 @@ use tokio::{
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use url::Url;
 
 use crate::exchanges::{
     Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType,

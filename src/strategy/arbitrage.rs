@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, Duration};
 
-use crate::exchanges::Exchange;
+use crate::exchanges::{BybitExchange, Exchange, GateExchange, KuCoinExchange};
 use crate::{
     exchanges::{ArbitrageOpportunity, ExchangeFee, ExchangeName, OrderBookData, TickerData},
     AppState,
@@ -14,28 +15,45 @@ use crate::{
 struct OwnedOrderBookItem(String, String);
 
 pub async fn start_arbitrage_checker_ws(state: AppState) {
-    let symbols = vec!["BTCUSDT"];
-
-    let stdout = io::stdout();
-    let mut handle = io::BufWriter::new(stdout);
+    let symbols = vec!["LPTUSDT"];
 
     // Get exchanges
     let exchanges = state.exchanges;
     let (bybit, kucoin, gate) = exchanges.as_ref();
 
     // Subscribe to order books for each symbol on each exchange
-    let mut orderbook_receivers = Vec::new();
+    let orderbooks: Arc<RwLock<HashMap<(ExchangeName, String), OrderBookData>>> =
+        Arc::new(RwLock::new(HashMap::new()));
     for symbol in symbols {
-        if let Ok(rx) = bybit.subscribe_orderbook(symbol.to_string(), async |orderbook| {
-          println!("bybit Order book {:?}", orderbook)
-        }).await {
-            orderbook_receivers.push((ExchangeName::Bybit, symbol, rx));
-        }
-        if let Ok(rx) = kucoin.subscribe_orderbook("ETHUSDTM".to_string(), async |orderbook| {
-          println!("kucoin Order book {:?}", orderbook)
-        }).await {
-            orderbook_receivers.push((ExchangeName::Kucoin, "ETHUSDTM", rx));
-        }
+        let orderbooks = orderbooks.clone();
+        let orderbooks_bybit = orderbooks.clone();
+        bybit
+            .subscribe_orderbook(symbol.to_string(), move |orderbook| {
+                let orderbooks_bybit = orderbooks_bybit.clone();
+                let symbol = symbol.to_string();
+                async move {
+                    orderbooks_bybit
+                        .write()
+                        .await
+                        .insert((ExchangeName::Bybit, convert_bybit_symbol(symbol)), orderbook);
+                }
+            })
+            .await
+            .unwrap();
+        let orderbooks_kucoin = orderbooks.clone();
+        kucoin
+            .subscribe_orderbook("LPTUSDTM".to_string(), move |orderbook| {
+                let orderbooks_kucoin = orderbooks_kucoin.clone();
+                let symbol = "LPTUSDTM".to_string();
+                async move {
+                    orderbooks_kucoin
+                        .write()
+                        .await
+                        .insert((ExchangeName::Kucoin, convert_kucoin_symbol(symbol)), orderbook);
+                }
+            })
+            .await
+            .unwrap();
         // if let Ok(rx) = gate.subscribe_orderbook("BTC_USDT".to_string(), async |orderbook| {
         //   println!("gate Order book {:?}", orderbook)
         // }).await {
@@ -43,159 +61,139 @@ pub async fn start_arbitrage_checker_ws(state: AppState) {
         // }
     }
 
-    // // Store latest order book data
-    // let mut orderbooks: HashMap<(ExchangeName, String), OrderBookData> = HashMap::new();
-
-    // // Process any new order book updates
-    // for (exchange, symbol, mut rx) in orderbook_receivers {
-    //     tokio::spawn(async move {
-    //         while let Ok(orderbook) = rx.try_recv() {
-    //           println!("Order book {:?}", orderbook)
-    //             // orderbooks.insert((*exchange, symbol.clone()), orderbook);
-    //         }
-    //     });
-    // }
-
     loop {
-      sleep(Duration::from_secs(5)).await;
+        // Check for arbitrage opportunities
+        let opportunities =
+            check_arbitrage_opportunities_ws(orderbooks.clone(), exchanges.clone()).await;
+
+        // Display results
+        println!("----------------------");
+        for opp in opportunities.iter().take(10) {
+            println!(
+                "Symbol: {}, Buy: {:?} @ {}, Sell: {:?} @ {}, Profit: {:.8}",
+                opp.symbol,
+                opp.buy_exchange,
+                opp.buy_price,
+                opp.sell_exchange,
+                opp.sell_price,
+                opp.potential_profit
+            )
+        }
+
+        sleep(Duration::from_secs(5)).await;
     }
-    // Main loop
-    // loop {
-    //     // Check for arbitrage opportunities
-    //     let opportunities = check_arbitrage_opportunities_ws(&orderbooks, exchanges);
-
-    //     // Display results
-    //     write!(handle, "\x1B[2J\x1B[1;1H").unwrap();
-    //     writeln!(handle, "Arbitrage Opportunities:").unwrap();
-    //     writeln!(handle, "----------------------").unwrap();
-
-    //     for opp in opportunities.iter().take(10) {
-    //         writeln!(
-    //             handle,
-    //             "Symbol: {}, Buy: {:?} @ {}, Sell: {:?} @ {}, Profit: {:.8}",
-    //             opp.symbol,
-    //             opp.buy_exchange,
-    //             opp.buy_price,
-    //             opp.sell_exchange,
-    //             opp.sell_price,
-    //             opp.potential_profit
-    //         )
-    //         .unwrap();
-    //     }
-    //     handle.flush().unwrap();
-
-    //     sleep(Duration::from_secs(5)).await;
-    // }
 }
 
-// fn check_arbitrage_opportunities_ws(
-//     orderbooks: &HashMap<(ExchangeName, String), OrderBookData>,
-//     exchanges: Arc<Vec<Box<dyn Exchange>>>,
-// ) -> Vec<ArbitrageOpportunity> {
-//     let mut opportunities = Vec::new();
+async fn check_arbitrage_opportunities_ws(
+    orderbooks: Arc<RwLock<HashMap<(ExchangeName, String), OrderBookData>>>,
+    exchanges: Arc<(BybitExchange, KuCoinExchange, GateExchange)>,
+) -> Vec<ArbitrageOpportunity> {
+    let mut opportunities = Vec::new();
 
-//     // Group orderbooks by symbol
-//     let mut symbol_orderbooks: HashMap<String, Vec<(ExchangeName, &OrderBookData)>> =
-//         HashMap::new();
-//     for ((exchange, symbol), orderbook) in orderbooks {
-//         symbol_orderbooks
-//             .entry(symbol.clone())
-//             .or_default()
-//             .push((*exchange, orderbook));
-//     }
+    // Group orderbooks by symbol
+    let mut symbol_orderbooks: HashMap<String, Vec<(ExchangeName, OrderBookData)>> = HashMap::new();
+    let orderbooks_guard = orderbooks.read().await;
+    for ((exchange, symbol), orderbook) in orderbooks_guard.iter() {
+        symbol_orderbooks
+            .entry(symbol.clone())
+            .or_default()
+            .push((exchange.to_owned(), orderbook.clone()));
+    }
 
-//     // Check each symbol for arbitrage opportunities
-//     for (symbol, orderbooks) in symbol_orderbooks {
-//         if orderbooks.len() < 2 {
-//             continue;
-//         }
+    // Check each symbol for arbitrage opportunities
+    for (symbol, orderbooks) in symbol_orderbooks {
+        if orderbooks.len() < 2 {
+            continue;
+        }
 
-//         // Compare prices between exchanges
-//         for i in 0..orderbooks.len() {
-//             for j in (i + 1)..orderbooks.len() {
-//                 let (exchange1, orderbook1) = orderbooks[i];
-//                 let (exchange2, orderbook2) = orderbooks[j];
+        // Compare prices between exchanges
+        for i in 0..orderbooks.len() {
+            for j in (i + 1)..orderbooks.len() {
+                let (exchange1, orderbook1) = &orderbooks[i];
+                let (exchange2, orderbook2) = &orderbooks[j];
 
-//                 // Get fees for both exchanges
-//                 let fee1 = exchanges
-//                     .iter()
-//                     .find(|e| e == exchange1)
-//                     .map(|e| e.get_fees())
-//                     .unwrap_or(ExchangeFee {
-//                         maker_fee: 0.0,
-//                         taker_fee: 0.0,
-//                     });
-//                 let fee2 = exchanges
-//                     .iter()
-//                     .find(|e| e == exchange2)
-//                     .map(|e| e.get_fees())
-//                     .unwrap_or(ExchangeFee {
-//                         maker_fee: 0.0,
-//                         taker_fee: 0.0,
-//                     });
+                // Get fees for both exchanges
+                let fee1 = match exchange1 {
+                    ExchangeName::Bybit => exchanges.0.get_fees(),
+                    ExchangeName::Kucoin => exchanges.1.get_fees(),
+                    ExchangeName::Gate => exchanges.2.get_fees(),
+                    _ => ExchangeFee {
+                        maker_fee: 0.0,
+                        taker_fee: 0.0,
+                    },
+                };
+                let fee2 = match exchange2 {
+                    ExchangeName::Bybit => exchanges.0.get_fees(),
+                    ExchangeName::Kucoin => exchanges.1.get_fees(),
+                    ExchangeName::Gate => exchanges.2.get_fees(),
+                    _ => ExchangeFee {
+                        maker_fee: 0.0,
+                        taker_fee: 0.0,
+                    },
+                };
 
-//                 // Get best bid and ask prices
-//                 let best_ask1 = orderbook1
-//                     .asks
-//                     .first()
-//                     .map(|(price, _)| *price)
-//                     .unwrap_or(f64::MAX);
-//                 let best_bid1 = orderbook1
-//                     .bids
-//                     .first()
-//                     .map(|(price, _)| *price)
-//                     .unwrap_or(0.0);
-//                 let best_ask2 = orderbook2
-//                     .asks
-//                     .first()
-//                     .map(|(price, _)| *price)
-//                     .unwrap_or(f64::MAX);
-//                 let best_bid2 = orderbook2
-//                     .bids
-//                     .first()
-//                     .map(|(price, _)| *price)
-//                     .unwrap_or(0.0);
+                // Get best bid and ask prices
+                let best_ask1 = orderbook1
+                    .asks
+                    .first()
+                    .map(|(price, _)| *price)
+                    .unwrap();
+                let best_bid1 = orderbook1
+                    .bids
+                    .first()
+                    .map(|(price, _)| *price)
+                    .unwrap();
+                let best_ask2 = orderbook2
+                    .asks
+                    .first()
+                    .map(|(price, _)| *price)
+                    .unwrap();
+                let best_bid2 = orderbook2
+                    .bids
+                    .first()
+                    .map(|(price, _)| *price)
+                    .unwrap();
 
-//                 // Check if we can buy on exchange1 and sell on exchange2
-//                 let buy_on_1_sell_on_2 = best_ask1 < best_bid2;
-//                 let total_fee1 = (best_ask1 * fee1.maker_fee + best_bid2 * fee2.maker_fee) * 2.0;
-//                 let profit1 = best_bid2 - best_ask1 - total_fee1;
+                // Check if we can buy on exchange1 and sell on exchange2
+                let buy_on_1_sell_on_2 = best_ask1 < best_bid2;
+                let total_fee1 = (best_ask1 * fee1.taker_fee + best_bid2 * fee2.taker_fee) * 2.0;
+                let profit1 = best_bid2 - best_ask1 - total_fee1;
 
-//                 // Check if we can buy on exchange2 and sell on exchange1
-//                 let buy_on_2_sell_on_1 = best_ask2 < best_bid1;
-//                 let total_fee2 = (best_ask2 * fee2.maker_fee + best_bid1 * fee1.maker_fee) * 2.0;
-//                 let profit2 = best_bid1 - best_ask2 - total_fee2;
+                // Check if we can buy on exchange2 and sell on exchange1
+                let buy_on_2_sell_on_1 = best_ask2 < best_bid1;
+                let total_fee2 = (best_ask2 * fee2.taker_fee + best_bid1 * fee1.taker_fee) * 2.0;
+                let profit2 = best_bid1 - best_ask2 - total_fee2;
 
-//                 if buy_on_1_sell_on_2 && profit1 > 0.0 {
-//                     opportunities.push(ArbitrageOpportunity {
-//                         symbol: symbol.clone(),
-//                         buy_exchange: exchange1.clone(),
-//                         sell_exchange: exchange2.clone(),
-//                         buy_price: best_ask1,
-//                         sell_price: best_bid2,
-//                         potential_profit: profit1,
-//                         total_fees: total_fee1,
-//                     });
-//                 }
+                if buy_on_1_sell_on_2 && profit1 > 0.0 {
+                    opportunities.push(ArbitrageOpportunity {
+                        symbol: symbol.clone(),
+                        buy_exchange: exchange1.to_owned(),
+                        sell_exchange: exchange2.to_owned(),
+                        buy_price: best_ask1,
+                        sell_price: best_bid2,
+                        potential_profit: profit1,
+                        total_fees: total_fee1,
+                    });
+                }
 
-//                 if buy_on_2_sell_on_1 && profit2 > 0.0 {
-//                     opportunities.push(ArbitrageOpportunity {
-//                         symbol: symbol.clone(),
-//                         buy_exchange: exchange2.clone(),
-//                         sell_exchange: exchange1.clone(),
-//                         buy_price: best_ask2,
-//                         sell_price: best_bid1,
-//                         potential_profit: profit2,
-//                         total_fees: total_fee2,
-//                     });
-//                 }
-//             }
-//         }
-//     }
+                if buy_on_2_sell_on_1 && profit2 > 0.0 {
+                    opportunities.push(ArbitrageOpportunity {
+                        symbol: symbol.clone(),
+                        buy_exchange: exchange2.to_owned(),
+                        sell_exchange: exchange1.to_owned(),
+                        buy_price: best_ask2,
+                        sell_price: best_bid1,
+                        potential_profit: profit2,
+                        total_fees: total_fee2,
+                    });
+                }
+            }
+        }
+    }
 
-//     opportunities.sort_by(|a, b| b.potential_profit.total_cmp(&a.potential_profit));
-//     opportunities
-// }
+    opportunities.sort_by(|a, b| b.potential_profit.total_cmp(&a.potential_profit));
+    opportunities
+}
 
 // pub async fn start_arbitrage_checker(state: AppState) {
 //     loop {
