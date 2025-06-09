@@ -11,11 +11,11 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType,
-    TickerData,
+    Exchange, ExchangeClient, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
+    SubscriptionConfig, TickerData,
 };
 
-pub struct KuCoinExchange {
+pub struct KucoinExchange {
     client: Client,
     api_key: String,
     api_secret: String,
@@ -23,7 +23,7 @@ pub struct KuCoinExchange {
     maker_fee: f64,
 }
 
-impl KuCoinExchange {
+impl KucoinExchange {
     pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
         Self {
             client: Client::new(),
@@ -36,7 +36,7 @@ impl KuCoinExchange {
 }
 
 #[async_trait]
-impl Exchange for KuCoinExchange {
+impl Exchange for KucoinExchange {
     fn name(&self) -> ExchangeName {
         ExchangeName::Kucoin
     }
@@ -81,22 +81,18 @@ impl Exchange for KuCoinExchange {
         Ok(tickers)
     }
 
-    fn get_fees(&self) -> ExchangeFee {
-        ExchangeFee {
+    fn config(&self) -> ExchangeConfig {
+        ExchangeConfig {
             maker_fee: self.maker_fee,
             taker_fee: self.taker_fee,
         }
     }
 
-    async fn subscribe_orderbook<C, Fut>(
-        &self,
-        symbol: String,
-        mut callback: C,
-    ) -> Result<(), ExchangeError>
-    where
-        C: FnMut(OrderBookData) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
+    async fn subscribe_orderbook(
+        &mut self,
+        config: SubscriptionConfig,
+        sender: mpsc::UnboundedSender<OrderBookData>,
+    ) -> Result<(), ExchangeError> {
         let token_url = "https://api-futures.kucoin.com/api/v1/bullet-public";
         let response = self.client.post(token_url).send().await?;
         let data: Value = response.json().await?;
@@ -113,11 +109,12 @@ impl Exchange for KuCoinExchange {
             .expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
 
+        let symbol = config.symbols[0].to_owned();
         // Subscribe to order book
         let subscribe_msg = serde_json::json!({
           "id": 200,
           "type": "subscribe",
-          "topic": format!("/contractMarket/tickerV2:{}", symbol),
+          "topic": format!("/contractMarket/tickerV2:{}USDTM", symbol),
         });
 
         write
@@ -137,41 +134,46 @@ impl Exchange for KuCoinExchange {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
-                            
+
                             if let Value::Object(_) = data["data"] {
-                                let ask_price = data["data"]["bestAskPrice"]
+                                let best_ask_price = data["data"]["bestAskPrice"]
                                     .as_str()
                                     .unwrap()
                                     .parse::<f64>()
                                     .unwrap();
-                                let ask_amount = data["data"]["bestAskSize"].as_f64().unwrap();
+                                let best_ask_amount = data["data"]["bestAskSize"].as_f64().unwrap();
 
-                                let bid_price = data["data"]["bestBidPrice"]
+                                let best_bid_price = data["data"]["bestBidPrice"]
                                     .as_str()
                                     .unwrap()
                                     .parse::<f64>()
                                     .unwrap();
-                                let bid_amount = data["data"]["bestBidSize"].as_f64().unwrap();
+                                let best_bid_amount = data["data"]["bestBidSize"].as_f64().unwrap();
 
-                                let s = data["data"]["symbol"].as_str().unwrap().to_string();
+                                let timestamp = data["data"]["ts"].as_i64().unwrap() as u64 / 1_000_000;
 
                                 let orderbook: OrderBookData = OrderBookData {
-                                    symbol: s,
-                                    bids: vec![(bid_price, bid_amount)],
-                                    asks: vec![(ask_price, ask_amount)],
-                                    data_type: OrderBookDataType::Snapshot,
+                                    symbol: symbol.clone(),
+                                    best_ask_amount,
+                                    best_ask_price,
+                                    best_bid_amount,
+                                    best_bid_price,
+                                    timestamp,
+                                    exchange_name: ExchangeName::Kucoin,
                                 };
-                                callback(orderbook).await;
+                                if sender.send(orderbook).is_err() {
+                                    break; // Receiver dropped
+                                }
                             }
                         }
                         Err(e) => {
-                            println!("{:?}", e);
+                            println!("Error while recieving data from kucoin {:?}", e);
                             break;
                         }
                         _ => {
-                            println!("ELSE");
+                            println!("Error while recieving data from kucoin");
                             break;
-                        },
+                        }
                     }
                 }
             }
@@ -181,12 +183,14 @@ impl Exchange for KuCoinExchange {
     }
 }
 
-pub async fn ping(ping_interval_ms: u64) -> Receiver<String> {
+async fn ping(ping_interval_ms: u64) -> Receiver<String> {
     let (tx, rx) = mpsc::channel(100);
     let mut id = 1;
     tokio::spawn(async move {
         loop {
-            let result = tx.send(format!("{{\"id\":\"{}\",\"type\":\"ping\"}}", id)).await;
+            let result = tx
+                .send(format!("{{\"id\":\"{}\",\"type\":\"ping\"}}", id))
+                .await;
             if result.is_err() {
                 break;
             }

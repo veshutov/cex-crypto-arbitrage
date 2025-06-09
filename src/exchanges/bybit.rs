@@ -5,14 +5,13 @@ use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::Value;
 use tokio::{
-    sync::mpsc::{self, Receiver},
+    sync::{mpsc::{self, Receiver}, Mutex},
     time::sleep,
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, tungstenite::{self, Message}};
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType,
-    TickerData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig, TickerData,
 };
 
 pub struct BybitExchange {
@@ -21,6 +20,7 @@ pub struct BybitExchange {
     api_secret: String,
     taker_fee: f64,
     maker_fee: f64,
+    ws_state: Mutex<Option<(futures::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, tungstenite::Message>, futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>)>>,
 }
 
 impl BybitExchange {
@@ -31,6 +31,7 @@ impl BybitExchange {
             api_secret,
             taker_fee,
             maker_fee,
+            ws_state: Mutex::new(None),
         }
     }
 }
@@ -82,30 +83,31 @@ impl Exchange for BybitExchange {
         Ok(tickers)
     }
 
-    fn get_fees(&self) -> ExchangeFee {
-        ExchangeFee {
+    fn config(&self) -> ExchangeConfig {
+        ExchangeConfig {
             maker_fee: self.maker_fee,
             taker_fee: self.taker_fee,
         }
     }
 
-    async fn subscribe_orderbook<C, Fut>(
-        &self,
-        symbol: String,
-        mut callback: C,
-    ) -> Result<(), ExchangeError>
-    where
-        C: FnMut(OrderBookData) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
+    async fn subscribe_orderbook(
+        &mut self,
+        config: SubscriptionConfig,
+        sender: mpsc::UnboundedSender<OrderBookData>,
+    ) -> Result<(), ExchangeError> {
         let url = "wss://stream.bybit.com/v5/public/linear";
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-        let (mut write, mut read) = ws_stream.split();
+        let (write, read) = ws_stream.split();
+        
+        let mut ws_state = self.ws_state.lock().await;
+        *ws_state = Some((write, read));
+        let (mut write, mut read) = ws_state.take().unwrap();
 
+        let symbol = config.symbols[0].to_owned();
         // Subscribe to order book
         let subscribe_msg = serde_json::json!({
             "op": "subscribe",
-            "args": [format!("orderbook.1.{}", symbol)]
+            "args": [format!("orderbook.1.{}USDT", symbol)]
         });
 
         write
@@ -146,30 +148,29 @@ impl Exchange for BybitExchange {
                                         })
                                         .collect();
 
-                                    let data_type = match data["type"].as_str().unwrap() {
-                                        "snapshot" => OrderBookDataType::Snapshot,
-                                        "delta" => OrderBookDataType::Delta,
-                                        _ => panic!("Unknown order book data type"),
-                                    };
-
-                                    let s = data["data"]["s"].as_str().unwrap().to_string();
+                                    let timestamp = data["ts"].as_i64().unwrap();
 
                                     let orderbook: OrderBookData = OrderBookData {
-                                        symbol: s,
-                                        bids,
-                                        asks,
-                                        data_type,
+                                        symbol: symbol.clone(),
+                                        best_ask_price: asks[0].0,
+                                        best_ask_amount: asks[0].1,
+                                        best_bid_price: bids[0].0,
+                                        best_bid_amount: bids[0].1,
+                                        timestamp: timestamp as u64,
+                                        exchange_name: ExchangeName::Bybit,
                                     };
-                                    callback(orderbook).await;
+                                    if sender.send(orderbook).is_err() {
+                                        break; // Receiver dropped
+                                    }
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("{:?}", e);
+                            println!("Error while recieving data from bybit {:?}", e);
                             break;
                         }
                         _ => {
-                            println!("ELSE");
+                            println!("Error while recieving data from bybit");
                             break;
                         }
                     }
@@ -181,7 +182,7 @@ impl Exchange for BybitExchange {
     }
 }
 
-pub async fn ping() -> Receiver<&'static str> {
+async fn ping() -> Receiver<&'static str> {
     let (tx, rx) = mpsc::channel(100);
     tokio::spawn(async move {
         loop {

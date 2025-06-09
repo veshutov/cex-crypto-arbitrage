@@ -1,58 +1,42 @@
-mod bingx;
-mod bitget;
-mod bybit;
-mod gate;
-mod htx;
-mod kucoin;
-mod mexc;
-mod okx;
-
-pub use bybit::BybitExchange;
-pub use kucoin::KuCoinExchange;
-// pub use okx::OkxExchange;
-// pub use bitget::BitgetExchange;
-// pub use htx::HtxExchange;
-pub use gate::GateExchange;
-// pub use mexc::MexcExchange;
-// pub use bingx::BingxExchange;
+pub mod bybit;
+pub mod gate;
+pub mod kucoin;
+pub mod gateway;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::mpsc;
 
-#[derive(Debug, Error)]
-pub enum ExchangeError {
-    #[error("API request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
-    #[error("Invalid response: {0}")]
-    InvalidResponse(String),
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
-    #[error("Authentication failed")]
-    AuthenticationFailed,
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum ExchangeName {
+    Bybit,
+    Kucoin,
+    Gate,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OrderType {
-    Limit,
-    Market,
+#[async_trait]
+pub trait Exchange: Send + Sync {
+    fn name(&self) -> ExchangeName;
+    fn config(&self) -> ExchangeConfig;
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
+    async fn subscribe_orderbook(
+        &mut self,
+        config: SubscriptionConfig,
+        sender: mpsc::UnboundedSender<OrderBookData>,
+    ) -> Result<(), ExchangeError>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExchangeFee {
+#[derive(Clone, Debug)]
+pub struct ExchangeConfig {
     pub maker_fee: f64,
     pub taker_fee: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ArbitrageOpportunity {
-    pub symbol: String,
-    pub buy_exchange: ExchangeName,
-    pub sell_exchange: ExchangeName,
-    pub buy_price: f64,
-    pub sell_price: f64,
-    pub potential_profit: f64,
-    pub total_fees: f64,
+#[derive(Debug, Clone)]
+pub struct SubscriptionConfig {
+    pub symbols: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,24 +49,17 @@ pub struct TickerData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookData {
+    pub exchange_name: ExchangeName,
     pub symbol: String,
-    pub data_type: OrderBookDataType,
-    pub bids: Vec<(f64, f64)>, // (price, size)
-    pub asks: Vec<(f64, f64)>, // (price, size)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum OrderBookDataType {
-    Snapshot,
-    Delta
+    pub best_bid_amount: f64,
+    pub best_bid_price: f64,
+    pub best_ask_price: f64,
+    pub best_ask_amount: f64,
+    pub timestamp: u64,
 }
 
 #[async_trait]
-pub trait Exchange: Send + Sync {
-    fn name(&self) -> ExchangeName;
-
-    fn get_fees(&self) -> ExchangeFee;
-
+pub trait ExchangeClient: Send + Sync {
     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
 
     async fn subscribe_orderbook<C, Fut>(
@@ -95,14 +72,14 @@ pub trait Exchange: Send + Sync {
         Fut: std::future::Future<Output = ()> + Send;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub enum ExchangeName {
-    Bybit,
-    Kucoin,
-    Gate,
-    Bingx,
-    BitGet,
-    Htx,
-    Mexc,
-    Okx,
+#[derive(Debug, Error)]
+pub enum ExchangeError {
+    #[error("API request failed: {0}")]
+    RequestError(#[from] reqwest::Error),
+    #[error("Invalid response: {0}")]
+    InvalidResponse(String),
+    #[error("Rate limit exceeded")]
+    RateLimitExceeded,
+    #[error("Authentication failed")]
+    AuthenticationFailed,
 }

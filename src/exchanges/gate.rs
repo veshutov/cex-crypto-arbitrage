@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::Value;
+use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeFee, ExchangeName, OrderBookData, OrderBookDataType,
-    TickerData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
+    SubscriptionConfig, TickerData,
 };
 
 pub struct GateExchange {
@@ -72,32 +73,29 @@ impl Exchange for GateExchange {
         Ok(tickers)
     }
 
-    fn get_fees(&self) -> ExchangeFee {
-        ExchangeFee {
+    fn config(&self) -> ExchangeConfig {
+        ExchangeConfig {
             maker_fee: self.maker_fee,
             taker_fee: self.taker_fee,
         }
     }
 
-    async fn subscribe_orderbook<C, Fut>(
-        &self,
-        symbol: String,
-        mut callback: C,
-    ) -> Result<(), ExchangeError>
-    where
-        C: FnMut(OrderBookData) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
+    async fn subscribe_orderbook(
+        &mut self,
+        config: SubscriptionConfig,
+        sender: mpsc::UnboundedSender<OrderBookData>,
+    ) -> Result<(), ExchangeError> {
         let url = "wss://fx-ws.gateio.ws/v4/ws/usdt";
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
 
+        let symbol = config.symbols[0].to_owned();
         // Subscribe to order book
         let subscribe_msg = serde_json::json!({
             "time": chrono::Utc::now().timestamp(),
-            "channel": "futures.obu",
+            "channel": "futures.book_ticker",
             "event": "subscribe",
-            "payload": [format!("ob.{}.50", symbol)]
+            "payload": [symbol.clone() + "_USDT"]
         });
 
         write
@@ -112,50 +110,42 @@ impl Exchange for GateExchange {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
                             if let Value::String(_) = data["result"]["s"] {
-                                let asks: Vec<(f64, f64)> = data["result"]["a"]
-                                    .as_array()
-                                    .unwrap()
-                                    .iter()
-                                    .filter_map(|item| {
-                                        let price = item[0].as_str()?.parse::<f64>().ok()?;
-                                        let size = item[1].as_str()?.parse::<f64>().ok()?;
-                                        Some((price, size))
-                                    })
-                                    .collect();
-
-                                let bids: Vec<(f64, f64)> = data["result"]["b"]
-                                    .as_array()
-                                    .unwrap()
-                                    .iter()
-                                    .filter_map(|item| {
-                                        let price = item[0].as_str()?.parse::<f64>().ok()?;
-                                        let size = item[1].as_str()?.parse::<f64>().ok()?;
-                                        Some((price, size))
-                                    })
-                                    .collect();
-
-                                let s = data["result"]["s"]
+                                let best_ask_price = data["result"]["a"]
                                     .as_str()
                                     .unwrap()
-                                    .split(".")
-                                    .collect::<Vec<_>>()[1]
-                                    .to_string();
+                                    .parse::<f64>()
+                                    .unwrap();
+                                let best_ask_amount = data["result"]["A"].as_f64().unwrap();
+
+                                let best_bid_price = data["result"]["b"]
+                                    .as_str()
+                                    .unwrap()
+                                    .parse::<f64>()
+                                    .unwrap();
+                                let best_bid_amount = data["result"]["B"].as_f64().unwrap();
+
+                                let timestamp = data["result"]["t"].as_i64().unwrap() as u64;
 
                                 let orderbook: OrderBookData = OrderBookData {
-                                    symbol: s,
-                                    bids,
-                                    asks,
-                                    data_type: OrderBookDataType::Snapshot,
+                                    symbol: symbol.clone(),
+                                    best_ask_amount,
+                                    best_ask_price,
+                                    best_bid_amount,
+                                    best_bid_price,
+                                    timestamp,
+                                    exchange_name: ExchangeName::Gate,
                                 };
-                                callback(orderbook).await;
+                                if sender.send(orderbook).is_err() {
+                                    break; // Receiver dropped
+                                }
                             }
                         }
                         Err(e) => {
-                            println!("{:?}", e);
+                            println!("Error while recieving data from gate {:?}", e);
                             break;
                         }
                         _ => {
-                            println!("ELSE");
+                            println!("Error while recieving data from gate");
                             break;
                         }
                     }

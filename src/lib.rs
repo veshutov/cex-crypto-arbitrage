@@ -15,13 +15,12 @@ pub mod strategy;
 pub use cfg::*;
 pub use db::*;
 
-use crate::exchanges::{BybitExchange, Exchange, GateExchange, KuCoinExchange};
+use crate::exchanges::{bybit::BybitExchange, ExchangeClient, gate::GateExchange, kucoin::KucoinExchange};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Db,
     pub cfg: Config,
-    pub exchanges: Arc<(BybitExchange, KuCoinExchange, GateExchange)>,
 }
 
 pub fn router(app_state: AppState) -> Router {

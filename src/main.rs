@@ -1,9 +1,6 @@
 use server::{
-    exchanges::{self, BybitExchange, Exchange, GateExchange, KuCoinExchange},
-    strategy::arbitrage::{start_arbitrage_checker_ws},
-    telemetry, AppState, Configuration, Db,
+    strategy::{arbitrage::start_arbitrage_checker_ws, old::start_arbitrage_checker}, telemetry, AppState, Configuration, Db
 };
-use std::sync::Arc;
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -29,67 +26,14 @@ async fn main() {
     tracing::debug!("Running migrations");
     db.migrate().await.expect("Failed to run migrations");
 
-    let exchanges = (
-        BybitExchange::new(
-            cfg.bybit_api_key.clone(),
-            cfg.bybit_api_secret.clone(),
-            cfg.bybit_taker_fee,
-            cfg.bybit_maker_fee,
-        ),
-        KuCoinExchange::new(
-            cfg.kucoin_api_key.clone(),
-            cfg.kucoin_api_secret.clone(),
-            cfg.kucoin_taker_fee,
-            cfg.kucoin_maker_fee,
-        ),
-        GateExchange::new(
-            cfg.gate_api_key.clone(),
-            cfg.gate_api_secret.clone(),
-            cfg.gate_taker_fee,
-            cfg.gate_maker_fee,
-        )
-        // Box::new(OkxExchange::new(
-        //     cfg.okx_api_key.clone(),
-        //     cfg.okx_api_secret.clone(),
-        //     cfg.okx_taker_fee,
-        //     cfg.okx_maker_fee,
-        // )),
-        // Box::new(BitgetExchange::new(
-        //     cfg.bitget_api_key.clone(),
-        //     cfg.bitget_api_secret.clone(),
-        //     cfg.bitget_taker_fee,
-        //     cfg.bitget_maker_fee,
-        // )),
-        // Box::new(HtxExchange::new(
-        //     cfg.htx_api_key.clone(),
-        //     cfg.htx_api_secret.clone(),
-        //     cfg.htx_taker_fee,
-        //     cfg.htx_maker_fee,
-        // )),
-        // Box::new(MexcExchange::new(
-        //     cfg.mexc_api_key.clone(),
-        //     cfg.mexc_api_secret.clone(),
-        //     cfg.mexc_taker_fee,
-        //     cfg.mexc_maker_fee,
-        // )),
-        // Box::new(BingxExchange::new(
-        //     cfg.bingx_api_key.clone(),
-        //     cfg.bingx_api_secret.clone(),
-        //     cfg.bingx_taker_fee,
-        //     cfg.bingx_maker_fee,
-        // )),
-    );
-    let exchanges_arc = Arc::new(exchanges);
-
     // Create app state
     let app_state = AppState {
         db,
         cfg,
-        exchanges: exchanges_arc,
     };
 
     // Start arbitrage checker in background
-    // tokio::spawn(start_arbitrage_checker(app_state.clone()));
+    tokio::spawn(start_arbitrage_checker(app_state.clone()));
     tokio::spawn(start_arbitrage_checker_ws(app_state.clone()));
 
     // Spin up our server.
