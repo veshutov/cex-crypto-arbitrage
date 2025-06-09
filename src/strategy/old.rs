@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -8,20 +9,19 @@ use crate::exchanges::bybit::BybitExchange;
 use crate::exchanges::gate::GateExchange;
 use crate::exchanges::kucoin::KucoinExchange;
 use crate::exchanges::{Exchange, ExchangeConfig, TickerData};
-use crate::{exchanges::ExchangeName};
-use crate::Config;
+use crate::{exchanges::ExchangeName, Config};
 
 pub async fn start_arbitrage_checker(cfg: Config) {
     loop {
         let now: Instant = Instant::now();
-        let _opportunities = check_arbitrage_opportunities(cfg.clone()).await;
+        let _opportunities = check_arbitrage_opportunities(&cfg).await;
         let elapsed = now.elapsed();
         println!("Check duration: {:.2?}", elapsed);
         sleep(Duration::from_secs(5)).await;
     }
 }
 
-async fn check_arbitrage_opportunities(cfg: Config) -> Vec<RestArbitrageOpportunity> {
+async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<RestArbitrageOpportunity> {
     let mut opportunities = Vec::new();
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
@@ -106,17 +106,17 @@ async fn check_arbitrage_opportunities(cfg: Config) -> Vec<RestArbitrageOpportun
                 let buy_on_1_sell_on_2 = ticker1.best_ask_price < ticker2.best_bid_price;
                 let total_fee1 = (ticker1.best_ask_price * fee1.taker_fee
                     + ticker2.best_bid_price * fee2.taker_fee)
-                    * 2.0;
+                    * Decimal::from(2);
                 let profit1 = ticker2.best_bid_price - ticker1.best_ask_price - total_fee1;
 
                 // Check if we can buy on exchange2 and sell on exchange1
                 let buy_on_2_sell_on_1 = ticker2.best_ask_price < ticker1.best_bid_price;
                 let total_fee2 = (ticker2.best_ask_price * fee2.taker_fee
                     + ticker1.best_bid_price * fee1.taker_fee)
-                    * 2.0;
+                    * Decimal::from(2);
                 let profit2 = ticker1.best_bid_price - ticker2.best_ask_price - total_fee2;
 
-                if buy_on_1_sell_on_2 && profit1 > 0.0 {
+                if buy_on_1_sell_on_2 && profit1 > Decimal::ZERO {
                     opportunities.push(RestArbitrageOpportunity {
                         symbol: symbol.clone(),
                         buy_exchange: exchange1.clone(),
@@ -128,7 +128,7 @@ async fn check_arbitrage_opportunities(cfg: Config) -> Vec<RestArbitrageOpportun
                     });
                 }
 
-                if buy_on_2_sell_on_1 && profit2 > 0.0 {
+                if buy_on_2_sell_on_1 && profit2 > Decimal::ZERO {
                     opportunities.push(RestArbitrageOpportunity {
                         symbol: symbol.clone(),
                         buy_exchange: exchange2.clone(),
@@ -143,7 +143,7 @@ async fn check_arbitrage_opportunities(cfg: Config) -> Vec<RestArbitrageOpportun
         }
     }
 
-    opportunities.sort_by(|a, b| b.potential_profit.total_cmp(&a.potential_profit));
+    opportunities.sort_by(|a, b| b.potential_profit.cmp(&a.potential_profit));
 
     opportunities.iter().take(10).for_each(|o| {
         println!(
@@ -189,13 +189,12 @@ fn convert_gate_symbol(symbol: String) -> String {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct RestArbitrageOpportunity {
     pub symbol: String,
     pub buy_exchange: ExchangeName,
     pub sell_exchange: ExchangeName,
-    pub buy_price: f64,
-    pub sell_price: f64,
-    pub potential_profit: f64,
-    pub total_fees: f64,
+    pub buy_price: Decimal,
+    pub sell_price: Decimal,
+    pub potential_profit: Decimal,
+    pub total_fees: Decimal,
 }

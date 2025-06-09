@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 use crate::{
@@ -10,12 +11,12 @@ pub struct ArbitrageOpportunity {
     pub symbol: String,
     pub buy_exchange: ExchangeName,
     pub sell_exchange: ExchangeName,
-    pub buy_price: f64,  // Ask price on buy exchange
-    pub sell_price: f64, // Bid price on sell exchange
-    pub gross_spread_percentage: f64,
-    pub net_spread_percentage: f64, // After fees
-    pub estimated_profit_per_unit: f64,
-    pub max_volume: f64,
+    pub buy_price: Decimal,  // Ask price on buy exchange
+    pub sell_price: Decimal, // Bid price on sell exchange
+    pub gross_spread_percentage: Decimal,
+    pub net_spread_percentage: Decimal, // After fees
+    pub estimated_profit_per_unit: Decimal,
+    pub max_volume: Decimal,
     pub timestamp: u64,
 }
 
@@ -51,7 +52,7 @@ impl ArbitrageEngine {
     pub async fn find_arbitrage_opportunities(
         &self,
         symbol: &str,
-        min_profit_percentage: f64,
+        min_profit_percentage: Decimal,
         max_age_ms: u64,
     ) -> Vec<ArbitrageOpportunity> {
         let current_time = std::time::SystemTime::now()
@@ -126,7 +127,7 @@ impl ArbitrageEngine {
         sell_exchange: &ExchangeName,
         buy_order_book: &OrderBookData,
         sell_order_book: &OrderBookData,
-        min_profit_percentage: f64,
+        min_profit_percentage: Decimal,
     ) -> Option<ArbitrageOpportunity> {
         let buy_config = self.exchange_gateway.exchanges.get(buy_exchange)?.config();
         let sell_config = self.exchange_gateway.exchanges.get(sell_exchange)?.config();
@@ -140,15 +141,15 @@ impl ArbitrageEngine {
 
         // Calculate gross spread
         let gross_spread = sell_price - buy_price;
-        let gross_spread_percentage = (gross_spread / buy_price) * 100.0;
+        let gross_spread_percentage = (gross_spread / buy_price) * Decimal::from(100);
 
         // Calculate fees
         let buy_fee = buy_price * buy_config.taker_fee;
         let sell_fee = sell_price * sell_config.taker_fee;
 
-        let total_fees = (buy_fee + sell_fee) * 2.0;
+        let total_fees = (buy_fee + sell_fee) * Decimal::from(2);
         let net_profit = gross_spread - total_fees;
-        let net_spread_percentage = (net_profit / buy_price) * 100.0;
+        let net_spread_percentage = (net_profit / buy_price) * Decimal::from(100);
 
         if net_spread_percentage < min_profit_percentage {
             return None;

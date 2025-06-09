@@ -3,6 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::{
     sync::mpsc::{self, Receiver},
@@ -11,20 +12,25 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
-    SubscriptionConfig, TickerData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig,
+    TickerData,
 };
 
 pub struct KucoinExchange {
     client: Client,
     api_key: String,
     api_secret: String,
-    taker_fee: f64,
-    maker_fee: f64,
+    taker_fee: Decimal,
+    maker_fee: Decimal,
 }
 
 impl KucoinExchange {
-    pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
+    pub fn new(
+        api_key: String,
+        api_secret: String,
+        taker_fee: Decimal,
+        maker_fee: Decimal,
+    ) -> Self {
         Self {
             client: Client::new(),
             api_key,
@@ -66,14 +72,14 @@ impl Exchange for KucoinExchange {
                 let symbol = item["symbol"].as_str()?;
 
                 // Parse bid and ask prices
-                let best_bid = item["bestBidPrice"].as_str()?.parse::<f64>().ok()?;
-                let best_ask = item["bestAskPrice"].as_str()?.parse::<f64>().ok()?;
+                let best_bid = item["bestBidPrice"].as_str()?.parse::<Decimal>().ok()?;
+                let best_ask = item["bestAskPrice"].as_str()?.parse::<Decimal>().ok()?;
 
                 Some(TickerData {
                     symbol: symbol.to_string(),
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
-                    volume_24h: 10_000_000.0,
+                    volume_24h: Decimal::from(10_000_000),
                 })
             })
             .collect();
@@ -139,18 +145,21 @@ impl Exchange for KucoinExchange {
                                 let best_ask_price = data["data"]["bestAskPrice"]
                                     .as_str()
                                     .unwrap()
-                                    .parse::<f64>()
+                                    .parse::<Decimal>()
                                     .unwrap();
-                                let best_ask_amount = data["data"]["bestAskSize"].as_f64().unwrap();
+                                let best_ask_amount =
+                                    data["data"]["bestAskSize"].as_i64().unwrap().into();
 
                                 let best_bid_price = data["data"]["bestBidPrice"]
                                     .as_str()
                                     .unwrap()
-                                    .parse::<f64>()
+                                    .parse::<Decimal>()
                                     .unwrap();
-                                let best_bid_amount = data["data"]["bestBidSize"].as_f64().unwrap();
+                                let best_bid_amount =
+                                    data["data"]["bestBidSize"].as_i64().unwrap().into();
 
-                                let timestamp = data["data"]["ts"].as_i64().unwrap() as u64 / 1_000_000;
+                                let timestamp =
+                                    data["data"]["ts"].as_i64().unwrap() as u64 / 1_000_000;
 
                                 let orderbook: OrderBookData = OrderBookData {
                                     symbol: symbol.clone(),

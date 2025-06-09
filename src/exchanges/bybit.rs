@@ -3,6 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::{
     sync::{mpsc::{self, Receiver}, Mutex},
@@ -18,13 +19,13 @@ pub struct BybitExchange {
     client: Client,
     api_key: String,
     api_secret: String,
-    taker_fee: f64,
-    maker_fee: f64,
+    taker_fee: Decimal,
+    maker_fee: Decimal,
     ws_state: Mutex<Option<(futures::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, tungstenite::Message>, futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>)>>,
 }
 
 impl BybitExchange {
-    pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
+    pub fn new(api_key: String, api_secret: String, taker_fee: Decimal, maker_fee: Decimal) -> Self {
         Self {
             client: Client::new(),
             api_key,
@@ -67,9 +68,9 @@ impl Exchange for BybitExchange {
                 let symbol = item["symbol"].as_str()?;
 
                 // Parse bid and ask prices
-                let best_bid = item["bid1Price"].as_str()?.parse::<f64>().ok()?;
-                let best_ask = item["ask1Price"].as_str()?.parse::<f64>().ok()?;
-                let volume_24h = item["volume24h"].as_str()?.parse::<f64>().ok()?;
+                let best_bid = item["bid1Price"].as_str()?.parse::<Decimal>().ok()?;
+                let best_ask = item["ask1Price"].as_str()?.parse::<Decimal>().ok()?;
+                let volume_24h = item["volume24h"].as_str()?.parse::<Decimal>().ok()?;
 
                 Some(TickerData {
                     symbol: symbol.to_string(),
@@ -130,20 +131,20 @@ impl Exchange for BybitExchange {
 
                             if let Some(asks) = data["data"]["a"].as_array() {
                                 if let Some(bids) = data["data"]["b"].as_array() {
-                                    let asks: Vec<(f64, f64)> = asks
+                                    let asks: Vec<(Decimal, Decimal)> = asks
                                         .iter()
                                         .filter_map(|item| {
-                                            let price = item[0].as_str()?.parse::<f64>().ok()?;
-                                            let size = item[1].as_str()?.parse::<f64>().ok()?;
+                                            let price = item[0].as_str()?.parse::<Decimal>().ok()?;
+                                            let size = item[1].as_str()?.parse::<Decimal>().ok()?;
                                             Some((price, size))
                                         })
                                         .collect();
 
-                                    let bids: Vec<(f64, f64)> = bids
+                                    let bids: Vec<(Decimal, Decimal)> = bids
                                         .iter()
                                         .filter_map(|item| {
-                                            let price = item[0].as_str()?.parse::<f64>().ok()?;
-                                            let size = item[1].as_str()?.parse::<f64>().ok()?;
+                                            let price = item[0].as_str()?.parse::<Decimal>().ok()?;
+                                            let size = item[1].as_str()?.parse::<Decimal>().ok()?;
                                             Some((price, size))
                                         })
                                         .collect();

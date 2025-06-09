@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -14,12 +15,17 @@ pub struct GateExchange {
     client: Client,
     api_key: String,
     api_secret: String,
-    taker_fee: f64,
-    maker_fee: f64,
+    taker_fee: Decimal,
+    maker_fee: Decimal,
 }
 
 impl GateExchange {
-    pub fn new(api_key: String, api_secret: String, taker_fee: f64, maker_fee: f64) -> Self {
+    pub fn new(
+        api_key: String,
+        api_secret: String,
+        taker_fee: Decimal,
+        maker_fee: Decimal,
+    ) -> Self {
         Self {
             client: Client::new(),
             api_key,
@@ -57,9 +63,9 @@ impl Exchange for GateExchange {
                 let symbol = item["contract"].as_str()?;
 
                 // Parse bid and ask prices
-                let best_bid = item["highest_bid"].as_str()?.parse::<f64>().ok()?;
-                let best_ask = item["lowest_ask"].as_str()?.parse::<f64>().ok()?;
-                let volume_24h = item["volume_24h"].as_str()?.parse::<f64>().ok()?;
+                let best_bid = item["highest_bid"].as_str()?.parse::<Decimal>().ok()?;
+                let best_ask = item["lowest_ask"].as_str()?.parse::<Decimal>().ok()?;
+                let volume_24h = item["volume_24h"].as_str()?.parse::<Decimal>().ok()?;
 
                 Some(TickerData {
                     symbol: symbol.to_string(),
@@ -117,16 +123,16 @@ impl Exchange for GateExchange {
                                 let best_ask_price = data["result"]["a"]
                                     .as_str()
                                     .unwrap()
-                                    .parse::<f64>()
+                                    .parse::<Decimal>()
                                     .unwrap();
-                                let best_ask_amount = data["result"]["A"].as_f64().unwrap();
+                                let best_ask_amount = data["result"]["A"].as_i64().unwrap().into();
 
                                 let best_bid_price = data["result"]["b"]
                                     .as_str()
                                     .unwrap()
-                                    .parse::<f64>()
+                                    .parse::<Decimal>()
                                     .unwrap();
-                                let best_bid_amount = data["result"]["B"].as_f64().unwrap();
+                                let best_bid_amount = data["result"]["B"].as_i64().unwrap().into();
 
                                 let timestamp = data["result"]["t"].as_i64().unwrap() as u64;
 

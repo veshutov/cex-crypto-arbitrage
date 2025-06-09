@@ -1,4 +1,5 @@
 use std::time::Duration;
+use rust_decimal::Decimal;
 
 use tokio::time::sleep;
 
@@ -41,19 +42,19 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) {
     let mut engine = ArbitrageEngine::new(market_data.clone(), exchange_gateway);
 
     engine
-        .start_order_book_processing(vec!["MASK".to_string()])
+        .start_order_book_processing(vec!["UMA".to_string()])
         .await;
 
     loop {
         let opportunities = engine
-            .find_arbitrage_opportunities("MASK", 0.0, 100_000)
+            .find_arbitrage_opportunities("UMA", Decimal::ZERO, 100_000)
             .await;
         opportunities.iter().take(10).for_each(|o| {
-          println!(
-              "  ws: symbol: {}, profit per unit: {}, buy: {:?}, sell: {:?}",
-              o.symbol, o.estimated_profit_per_unit, o.buy_exchange, o.sell_exchange
-          );
-      });
+            println!(
+                "  ws: symbol: {}, profit per unit: {}, buy: {:?}, sell: {:?}",
+                o.symbol, o.estimated_profit_per_unit, o.buy_exchange, o.sell_exchange
+            );
+        });
         sleep(Duration::from_secs(5)).await;
     }
 }

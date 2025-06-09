@@ -4,6 +4,7 @@ pub mod kucoin;
 pub mod gateway;
 
 use async_trait::async_trait;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -30,8 +31,8 @@ pub trait Exchange: Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct ExchangeConfig {
-    pub maker_fee: f64,
-    pub taker_fee: f64,
+    pub maker_fee: Decimal,
+    pub taker_fee: Decimal,
 }
 
 #[derive(Debug, Clone)]
@@ -42,19 +43,19 @@ pub struct SubscriptionConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TickerData {
     pub symbol: String,
-    pub best_bid_price: f64,
-    pub best_ask_price: f64,
-    pub volume_24h: f64,
+    pub best_bid_price: Decimal,
+    pub best_ask_price: Decimal,
+    pub volume_24h: Decimal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookData {
     pub exchange_name: ExchangeName,
     pub symbol: String,
-    pub best_bid_amount: f64,
-    pub best_bid_price: f64,
-    pub best_ask_price: f64,
-    pub best_ask_amount: f64,
+    pub best_bid_amount: Decimal,
+    pub best_bid_price: Decimal,
+    pub best_ask_price: Decimal,
+    pub best_ask_amount: Decimal,
     pub timestamp: u64,
 }
 
