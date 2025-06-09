@@ -8,21 +8,21 @@ use crate::exchanges::bybit::BybitExchange;
 use crate::exchanges::gate::GateExchange;
 use crate::exchanges::kucoin::KucoinExchange;
 use crate::exchanges::{Exchange, ExchangeConfig, TickerData};
-use crate::{exchanges::ExchangeName, AppState};
+use crate::{exchanges::ExchangeName};
+use crate::Config;
 
-pub async fn start_arbitrage_checker(state: AppState) {
+pub async fn start_arbitrage_checker(cfg: Config) {
     loop {
         let now: Instant = Instant::now();
-        let _opportunities = check_arbitrage_opportunities(&state).await;
+        let _opportunities = check_arbitrage_opportunities(cfg.clone()).await;
         let elapsed = now.elapsed();
         println!("Check duration: {:.2?}", elapsed);
         sleep(Duration::from_secs(5)).await;
     }
 }
 
-async fn check_arbitrage_opportunities(state: &AppState) -> Vec<RestArbitrageOpportunity> {
+async fn check_arbitrage_opportunities(cfg: Config) -> Vec<RestArbitrageOpportunity> {
     let mut opportunities = Vec::new();
-    let cfg = state.cfg.clone();
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
             cfg.bybit_api_key.clone(),
@@ -67,7 +67,7 @@ async fn check_arbitrage_opportunities(state: &AppState) -> Vec<RestArbitrageOpp
             //     tickers.len()
             // );
             for ticker in tickers {
-                if ticker.volume_24h < state.cfg.min_volume_24h {
+                if ticker.volume_24h < cfg.min_volume_24h {
                     continue;
                 }
                 let fee = exchange.config();

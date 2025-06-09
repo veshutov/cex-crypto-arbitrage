@@ -9,10 +9,9 @@ use crate::exchanges::kucoin::KucoinExchange;
 use crate::exchanges::Exchange;
 use crate::strategy::engine::ArbitrageEngine;
 use crate::strategy::market_data::MarketData;
-use crate::AppState;
+use crate::Config;
 
-pub async fn start_arbitrage_checker_ws(state: AppState) {
-    let cfg = state.cfg;
+pub async fn start_arbitrage_checker_ws(cfg: Config) {
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
             cfg.bybit_api_key.clone(),

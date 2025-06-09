@@ -1,14 +1,7 @@
 [package]
-name = "server"
+name = "hft"
 version = "0.1.0"
 edition = "2021"
-
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-path = "src/main.rs"
-name = "server"
 
 [dependencies]
 tokio = { version = "1.45.1", features = ["full"] }
