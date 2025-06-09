@@ -21,7 +21,6 @@ pub struct BybitExchange {
     api_secret: String,
     taker_fee: Decimal,
     maker_fee: Decimal,
-    ws_state: Mutex<Option<(futures::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, tungstenite::Message>, futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>)>>,
 }
 
 impl BybitExchange {
@@ -32,7 +31,6 @@ impl BybitExchange {
             api_secret,
             taker_fee,
             maker_fee,
-            ws_state: Mutex::new(None),
         }
     }
 }
@@ -98,11 +96,7 @@ impl Exchange for BybitExchange {
     ) -> Result<(), ExchangeError> {
         let url = "wss://stream.bybit.com/v5/public/linear";
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-        let (write, read) = ws_stream.split();
-        
-        let mut ws_state = self.ws_state.lock().await;
-        *ws_state = Some((write, read));
-        let (mut write, mut read) = ws_state.take().unwrap();
+        let (mut write, mut read) = ws_stream.split();
 
         let symbol = config.symbols[0].to_owned();
         // Subscribe to order book
