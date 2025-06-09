@@ -4,9 +4,13 @@ use tokio::sync::RwLock;
 
 use crate::exchanges::{ExchangeName, OrderBookData};
 
+type OrderBookKey = (String, ExchangeName);
+type OrderBookValue = Arc<RwLock<OrderBookData>>;
+type OrderBookMap = Arc<DashMap<OrderBookKey, OrderBookValue>>;
+
 #[derive(Clone, Debug)]
 pub struct MarketData {
-    tickers: Arc<DashMap<(String, ExchangeName), Arc<RwLock<OrderBookData>>>>,
+    tickers: OrderBookMap,
 }
 
 impl MarketData {
@@ -25,13 +29,13 @@ impl MarketData {
         match self.tickers.get(&key) {
             Some(quote_lock) => {
                 let mut current = quote_lock.write().await;
-                if new_order_book.timestamp > current.timestamp {
-                    *current = new_order_book;
-                    UpdateResult::Updated
-                } else if new_order_book.timestamp == current.timestamp {
-                    UpdateResult::Duplicate
-                } else {
-                    UpdateResult::Outdated
+                match new_order_book.timestamp.cmp(&current.timestamp) {
+                    std::cmp::Ordering::Greater => {
+                        *current = new_order_book;
+                        UpdateResult::Updated
+                    }
+                    std::cmp::Ordering::Equal => UpdateResult::Duplicate,
+                    std::cmp::Ordering::Less => UpdateResult::Outdated,
                 }
             }
             None => {
