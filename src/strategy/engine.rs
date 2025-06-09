@@ -1,12 +1,7 @@
-use dashmap::DashMap;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc, RwLock};
+use std::collections::HashMap;
 
 use crate::{
-    exchanges::{
-        gateway::ExchangeGateway, Exchange, ExchangeConfig, ExchangeError, ExchangeName,
-        OrderBookData, SubscriptionConfig,
-    },
+    exchanges::{gateway::ExchangeGateway, ExchangeName, OrderBookData},
     strategy::market_data::MarketData,
 };
 
@@ -47,7 +42,10 @@ impl ArbitrageEngine {
             }
         });
 
-        self.exchange_gateway.subscribe_to_symbols(symbols).await.unwrap();
+        self.exchange_gateway
+            .subscribe_to_symbols(symbols)
+            .await
+            .unwrap();
     }
 
     pub async fn find_arbitrage_opportunities(

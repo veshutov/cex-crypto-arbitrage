@@ -1,7 +1,4 @@
-use crate::{
-    strategy::{arbitrage::start_arbitrage_checker_ws, old::start_arbitrage_checker}, Configuration
-};
-use tokio::net::TcpListener;
+use crate::strategy::{arbitrage::start_arbitrage_checker_ws, old::start_arbitrage_checker};
 
 pub mod cfg;
 pub mod exchanges;

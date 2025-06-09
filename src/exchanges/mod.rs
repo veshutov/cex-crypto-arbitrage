@@ -58,20 +58,6 @@ pub struct OrderBookData {
     pub timestamp: u64,
 }
 
-#[async_trait]
-pub trait ExchangeClient: Send + Sync {
-    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
-
-    async fn subscribe_orderbook<C, Fut>(
-        &self,
-        symbol: String,
-        callback: C,
-    ) -> Result<(), ExchangeError>
-    where
-        C: FnMut(OrderBookData) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send;
-}
-
 #[derive(Debug, Error)]
 pub enum ExchangeError {
     #[error("API request failed: {0}")]

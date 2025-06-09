@@ -6,8 +6,8 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
-    SubscriptionConfig, TickerData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig,
+    TickerData,
 };
 
 pub struct GateExchange {
@@ -90,9 +90,13 @@ impl Exchange for GateExchange {
         let (mut write, mut read) = ws_stream.split();
 
         let symbol = config.symbols[0].to_owned();
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         // Subscribe to order book
         let subscribe_msg = serde_json::json!({
-            "time": chrono::Utc::now().timestamp(),
+            "time": current_time,
             "channel": "futures.book_ticker",
             "event": "subscribe",
             "payload": [symbol.clone() + "_USDT"]

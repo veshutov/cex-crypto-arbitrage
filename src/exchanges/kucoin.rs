@@ -11,7 +11,7 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeClient, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData,
     SubscriptionConfig, TickerData,
 };
 
