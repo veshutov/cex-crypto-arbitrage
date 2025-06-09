@@ -1,5 +1,5 @@
-use std::time::Duration;
 use rust_decimal::Decimal;
+use std::time::Duration;
 
 use tokio::time::sleep;
 
@@ -13,6 +13,7 @@ use crate::strategy::market_data::MarketData;
 use crate::Config;
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) {
+    let symbols = vec!["UMA".to_string(), "SCA".to_string()];
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
             cfg.bybit_api_key.clone(),
@@ -41,20 +42,20 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) {
 
     let mut engine = ArbitrageEngine::new(market_data.clone(), exchange_gateway);
 
-    engine
-        .start_order_book_processing(vec!["UMA".to_string()])
-        .await;
+    engine.start_order_book_processing(symbols.clone()).await;
 
     loop {
-        let opportunities = engine
-            .find_arbitrage_opportunities("UMA", Decimal::ZERO, 100_000)
-            .await;
-        opportunities.iter().take(10).for_each(|o| {
-            println!(
-                "  ws: symbol: {}, profit per unit: {}, buy: {:?}, sell: {:?}",
-                o.symbol, o.estimated_profit_per_unit, o.buy_exchange, o.sell_exchange
-            );
-        });
+        for symbol in symbols.clone() {
+            let opportunities = engine
+                .find_arbitrage_opportunities(symbol.as_str(), Decimal::ZERO, 100_000)
+                .await;
+            opportunities.iter().take(10).for_each(|o| {
+                println!(
+                    "  ws: symbol: {}, profit per unit: {}, buy: {:?}, sell: {:?}",
+                    o.symbol, o.estimated_profit_per_unit, o.buy_exchange, o.sell_exchange
+                );
+            });
+        }
         sleep(Duration::from_secs(5)).await;
     }
 }

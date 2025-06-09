@@ -98,11 +98,10 @@ impl Exchange for BybitExchange {
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
 
-        let symbol = config.symbols[0].to_owned();
-        // Subscribe to order book
+        // Subscribe to order book for all symbols
         let subscribe_msg = serde_json::json!({
             "op": "subscribe",
-            "args": [format!("orderbook.1.{}USDT", symbol)]
+            "args": config.symbols.iter().map(|symbol| format!("orderbook.1.{}USDT", symbol)).collect::<Vec<String>>()
         });
 
         write
@@ -144,9 +143,16 @@ impl Exchange for BybitExchange {
                                         .collect();
 
                                     let timestamp = data["ts"].as_i64().unwrap();
+                                    let symbol = data["topic"]
+                                        .as_str()
+                                        .unwrap()
+                                        .split('.')
+                                        .nth(2)
+                                        .unwrap()
+                                        .replace("USDT", "");
 
                                     let orderbook: OrderBookData = OrderBookData {
-                                        symbol: symbol.clone(),
+                                        symbol,
                                         best_ask_price: asks[0].0,
                                         best_ask_amount: asks[0].1,
                                         best_bid_price: bids[0].0,

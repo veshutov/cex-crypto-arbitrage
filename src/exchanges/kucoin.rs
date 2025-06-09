@@ -115,18 +115,20 @@ impl Exchange for KucoinExchange {
             .expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
 
-        let symbol = config.symbols[0].to_owned();
-        // Subscribe to order book
-        let subscribe_msg = serde_json::json!({
-          "id": 200,
-          "type": "subscribe",
-          "topic": format!("/contractMarket/tickerV2:{}USDTM", symbol),
-        });
+        // Subscribe to order book for each symbol with a unique ID
+        for (id, symbol) in config.symbols.iter().enumerate() {
+            let subscribe_msg = serde_json::json!({
+                "id": id + 200, // Start from 200 to avoid conflicts
+                "type": "subscribe",
+                "topic": format!("/contractMarket/tickerV2:{}USDTM", symbol)
+            });
 
-        write
-            .send(Message::Text(subscribe_msg.to_string().into()))
-            .await
-            .unwrap();
+            write
+                .send(Message::Text(subscribe_msg.to_string().into()))
+                .await
+                .unwrap();
+        }
+
         let mut rx = ping(ping_interval_ms as u64).await;
 
         tokio::spawn(async move {
@@ -142,6 +144,14 @@ impl Exchange for KucoinExchange {
                             let data: Value = serde_json::from_str(&text).unwrap();
 
                             if let Value::Object(_) = data["data"] {
+                                let symbol = data["topic"]
+                                    .as_str()
+                                    .unwrap()
+                                    .split(':')
+                                    .nth(1)
+                                    .unwrap()
+                                    .replace("USDTM", "");
+
                                 let best_ask_price = data["data"]["bestAskPrice"]
                                     .as_str()
                                     .unwrap()
@@ -162,7 +172,7 @@ impl Exchange for KucoinExchange {
                                     data["data"]["ts"].as_i64().unwrap() as u64 / 1_000_000;
 
                                 let orderbook: OrderBookData = OrderBookData {
-                                    symbol: symbol.clone(),
+                                    symbol,
                                     best_ask_amount,
                                     best_ask_price,
                                     best_bid_amount,

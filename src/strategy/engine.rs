@@ -63,10 +63,17 @@ impl ArbitrageEngine {
         let order_books = self.market_data.get_all_order_book_for_symbol(symbol).await;
         let mut opportunities = Vec::new();
 
-        // Filter out stale quotes
+        // Filter out stale quotes and handle potential timestamp issues
         let fresh_quotes: HashMap<ExchangeName, OrderBookData> = order_books
             .into_iter()
-            .filter(|(_, quote)| current_time - quote.timestamp <= max_age_ms)
+            .filter(|(_, quote)| {
+                if quote.timestamp > current_time {
+                    // If quote timestamp is in the future, consider it stale
+                    false
+                } else {
+                    current_time.saturating_sub(quote.timestamp) <= max_age_ms
+                }
+            })
             .collect();
 
         if fresh_quotes.len() < 2 {

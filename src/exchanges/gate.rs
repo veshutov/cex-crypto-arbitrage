@@ -95,17 +95,16 @@ impl Exchange for GateExchange {
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
 
-        let symbol = config.symbols[0].to_owned();
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        // Subscribe to order book
+        // Subscribe to order book for all symbols
         let subscribe_msg = serde_json::json!({
             "time": current_time,
             "channel": "futures.book_ticker",
             "event": "subscribe",
-            "payload": [symbol.clone() + "_USDT"]
+            "payload": config.symbols.iter().map(|symbol| symbol.clone() + "_USDT").collect::<Vec<String>>()
         });
 
         write
@@ -120,6 +119,11 @@ impl Exchange for GateExchange {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
                             if let Value::String(_) = data["result"]["s"] {
+                                let symbol = data["result"]["s"]
+                                    .as_str()
+                                    .unwrap()
+                                    .replace("_USDT", "");
+
                                 let best_ask_price = data["result"]["a"]
                                     .as_str()
                                     .unwrap()
@@ -137,7 +141,7 @@ impl Exchange for GateExchange {
                                 let timestamp = data["result"]["t"].as_i64().unwrap() as u64;
 
                                 let orderbook: OrderBookData = OrderBookData {
-                                    symbol: symbol.clone(),
+                                    symbol,
                                     best_ask_amount,
                                     best_ask_price,
                                     best_bid_amount,
