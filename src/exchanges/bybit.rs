@@ -6,10 +6,10 @@ use reqwest::Client;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::{
-    sync::{mpsc::{self, Receiver}, Mutex},
+    sync::mpsc::{self, Receiver},
     time::sleep,
 };
-use tokio_tungstenite::{connect_async, tungstenite::{self, Message}};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig, TickerData,
