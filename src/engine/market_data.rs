@@ -23,7 +23,7 @@ impl MarketData {
     pub async fn update_order_book(&self, new_order_book: OrderBookData) -> UpdateResult {
         let key = (
             new_order_book.symbol.clone(),
-            new_order_book.exchange_name.clone(),
+            new_order_book.exchange_name,
         );
 
         match self.tickers.get(&key) {
@@ -67,7 +67,7 @@ impl MarketData {
             if entry.key().0 == symbol {
                 let exchange = &entry.key().1;
                 let quote_data = entry.value().read().await;
-                result.insert(exchange.clone(), quote_data.clone());
+                result.insert(*exchange, quote_data.clone());
             }
         }
 

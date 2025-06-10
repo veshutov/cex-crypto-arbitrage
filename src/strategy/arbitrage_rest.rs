@@ -105,8 +105,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
 
                         opportunities.push(ArbitrageOpportunity {
                             symbol: symbol.clone(),
-                            buy_exchange: exchange1.clone(),
-                            sell_exchange: exchange2.clone(),
+                            buy_exchange: *exchange1,
+                            sell_exchange: *exchange2,
                             buy_price: buy_price1,
                             sell_price: sell_price1,
                             gross_spread_percentage: gross_spread_percentage1,
@@ -131,8 +131,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
 
                         opportunities.push(ArbitrageOpportunity {
                             symbol: symbol.clone(),
-                            buy_exchange: exchange2.clone(),
-                            sell_exchange: exchange1.clone(),
+                            buy_exchange: *exchange2,
+                            sell_exchange: *exchange1,
                             buy_price: buy_price2,
                             sell_price: sell_price2,
                             gross_spread_percentage: gross_spread_percentage2,
