@@ -1,3 +1,7 @@
+use async_trait::async_trait;
+use rust_decimal::Decimal;
+use tokio::sync::mpsc;
+
 pub mod bybit;
 pub mod error;
 pub mod gate;
@@ -5,10 +9,6 @@ pub mod gateway;
 pub mod kucoin;
 
 pub use error::*;
-
-use async_trait::async_trait;
-use rust_decimal::Decimal;
-use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ExchangeName {
