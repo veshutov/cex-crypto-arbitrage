@@ -4,17 +4,13 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::{
-    Result,
+    engine::{market_data::MarketData, Engine},
     exchanges::bybit::BybitExchange,
     exchanges::gate::GateExchange,
     exchanges::gateway::ExchangeGateway,
     exchanges::kucoin::KucoinExchange,
     exchanges::Exchange,
-    strategy::{
-        engine::ArbitrageEngine,
-        market_data::MarketData,
-    },
-    Config,
+    Config, Result,
 };
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
@@ -38,7 +34,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         exchange_gateway.add_exchange(exchange);
     }
 
-    let mut engine = ArbitrageEngine::new(market_data.clone(), exchange_gateway);
+    let mut engine = Engine::new(market_data.clone(), exchange_gateway);
 
     engine.start_order_book_processing(symbols.clone()).await?;
 

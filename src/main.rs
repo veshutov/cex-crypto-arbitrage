@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use crate::strategy::{arbitrage::start_arbitrage_checker_ws, rest::start_arbitrage_checker_rest};
+use crate::strategy::{arbitrage_ws::start_arbitrage_checker_ws, arbitrage_rest::start_arbitrage_checker_rest};
 
 pub mod cfg;
 pub mod exchanges;
 pub mod strategy;
 pub mod error;
+pub mod engine;
 
 pub use cfg::*;
 pub use error::*;

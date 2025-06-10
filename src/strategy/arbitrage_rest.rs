@@ -5,12 +5,12 @@ use std::time::{Duration, Instant};
 use futures::future::join_all;
 use tokio::time::sleep;
 
+use crate::engine::ArbitrageOpportunity;
 use crate::{
     exchanges::bybit::BybitExchange,
     exchanges::gate::GateExchange,
     exchanges::kucoin::KucoinExchange,
     exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
-    strategy::engine::ArbitrageOpportunity,
     Config, Result,
 };
 
