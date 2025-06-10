@@ -5,43 +5,45 @@ use std::time::{Duration, Instant};
 use futures::future::join_all;
 use tokio::time::sleep;
 
-use crate::exchanges::bybit::BybitExchange;
-use crate::exchanges::gate::GateExchange;
-use crate::exchanges::kucoin::KucoinExchange;
-use crate::exchanges::{Exchange, ExchangeConfig, TickerData};
-use crate::strategy::engine::ArbitrageOpportunity;
-use crate::{exchanges::ExchangeName, Config};
+use crate::{
+    exchanges::bybit::BybitExchange,
+    exchanges::gate::GateExchange,
+    exchanges::kucoin::KucoinExchange,
+    exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
+    strategy::engine::ArbitrageOpportunity,
+    Config, Result,
+};
 
-pub async fn start_arbitrage_checker(cfg: Config) {
+pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
     loop {
         let now: Instant = Instant::now();
-        let _opportunities = check_arbitrage_opportunities(&cfg).await;
+        let _opportunities = check_arbitrage_opportunities(&cfg).await?;
         let elapsed = now.elapsed();
         println!("Check duration: {:.2?}", elapsed);
         sleep(Duration::from_secs(5)).await;
     }
 }
 
-async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity> {
+async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOpportunity>> {
     let mut opportunities = Vec::new();
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
-            cfg.bybit_api_key.clone(),
-            cfg.bybit_api_secret.clone(),
-            cfg.bybit_taker_fee,
-            cfg.bybit_maker_fee,
+            cfg.bybit.api_key.clone(),
+            cfg.bybit.api_secret.clone(),
+            cfg.bybit.taker_fee,
+            cfg.bybit.maker_fee,
         )),
         Box::new(KucoinExchange::new(
-            cfg.kucoin_api_key.clone(),
-            cfg.kucoin_api_secret.clone(),
-            cfg.kucoin_taker_fee,
-            cfg.kucoin_maker_fee,
+            cfg.kucoin.api_key.clone(),
+            cfg.kucoin.api_secret.clone(),
+            cfg.kucoin.taker_fee,
+            cfg.kucoin.maker_fee,
         )),
         Box::new(GateExchange::new(
-            cfg.gate_api_key.clone(),
-            cfg.gate_api_secret.clone(),
-            cfg.gate_taker_fee,
-            cfg.gate_maker_fee,
+            cfg.gate.api_key.clone(),
+            cfg.gate.api_secret.clone(),
+            cfg.gate.taker_fee,
+            cfg.gate.maker_fee,
         )),
     ];
 
@@ -52,7 +54,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity
     // Run exchange requests in parallel, but measure each exchange call duration individually
     let ticker_futures: Vec<_> = exchanges
         .iter()
-        .map(|exchange| async move { exchange.get_futures_tickers().await })
+        .map(|exchange| async { exchange.get_futures_tickers().await })
         .collect();
 
     let now: Instant = Instant::now();
@@ -61,28 +63,27 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity
     println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
-        if let Ok(tickers) = result {
-            // println!(
-            //     "tickers size on {:?} exchange: {:?}",
-            //     exchange.name(),
-            //     tickers.len()
-            // );
-            for ticker in tickers {
-                if ticker.volume_24h < cfg.min_volume_24h {
-                    continue;
-                }
-                let fee = exchange.config();
-                let symbol = convert_symbol(ticker.symbol.clone(), exchange.name());
+        let tickers = result?;
+        // println!(
+        //     "tickers size on {:?} exchange: {:?}",
+        //     exchange.name(),
+        //     tickers.len()
+        // );
+        for ticker in tickers {
+            if ticker.volume_24h < cfg.min_volume_24h {
+                continue;
+            }
+            let fee = exchange.config();
+            let symbol = convert_symbol(ticker.symbol.clone(), exchange.name());
 
-                // Group tickers by symbol
-                if let Some((_, tickers)) = all_tickers_map
-                    .iter_mut()
-                    .find(|(s, _)| s.to_string() == symbol)
-                {
-                    tickers.push((exchange.name(), ticker, fee));
-                } else {
-                    all_tickers_map.insert(symbol, vec![(exchange.name(), ticker, fee)]);
-                }
+            // Group tickers by symbol
+            if let Some((_, tickers)) = all_tickers_map
+                .iter_mut()
+                .find(|(s, _)| s.to_string() == symbol)
+            {
+                tickers.push((exchange.name(), ticker, fee));
+            } else {
+                all_tickers_map.insert(symbol, vec![(exchange.name(), ticker, fee)]);
             }
         }
     }
@@ -114,7 +115,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity
                 let sell_price1 = ticker2.best_bid_price;
                 let gross_spread1 = sell_price1 - buy_price1;
                 let gross_spread_percentage1 = (gross_spread1 / buy_price1) * Decimal::from(100);
-                let total_fee1 = (buy_price1 * fee1.taker_fee + sell_price1 * fee2.taker_fee) * Decimal::from(2);
+                let total_fee1 =
+                    (buy_price1 * fee1.taker_fee + sell_price1 * fee2.taker_fee) * Decimal::from(2);
                 let net_profit1 = gross_spread1 - total_fee1;
                 let net_spread_percentage1 = (net_profit1 / buy_price1) * Decimal::from(100);
 
@@ -124,7 +126,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity
                 let sell_price2 = ticker1.best_bid_price;
                 let gross_spread2 = sell_price2 - buy_price2;
                 let gross_spread_percentage2 = (gross_spread2 / buy_price2) * Decimal::from(100);
-                let total_fee2 = (buy_price2 * fee2.taker_fee + sell_price2 * fee1.taker_fee) * Decimal::from(2);
+                let total_fee2 =
+                    (buy_price2 * fee2.taker_fee + sell_price2 * fee1.taker_fee) * Decimal::from(2);
                 let net_profit2 = gross_spread2 - total_fee2;
                 let net_spread_percentage2 = (net_profit2 / buy_price2) * Decimal::from(100);
 
@@ -161,18 +164,26 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Vec<ArbitrageOpportunity
         }
     }
 
-    opportunities.sort_by(|a, b| b.net_spread_percentage.partial_cmp(&a.net_spread_percentage).unwrap());
+    opportunities.sort_by(|a, b| {
+        b.net_spread_percentage
+            .partial_cmp(&a.net_spread_percentage)
+            .unwrap()
+    });
 
     opportunities.iter().take(10).for_each(|o| {
         println!(
             "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
-            o.symbol, o.estimated_profit_per_unit, o.net_spread_percentage, o.buy_exchange, o.sell_exchange
+            o.symbol,
+            o.estimated_profit_per_unit,
+            o.net_spread_percentage,
+            o.buy_exchange,
+            o.sell_exchange
         );
     });
 
     println!("------------------------------------------------------------------");
 
-    opportunities
+    Ok(opportunities)
 }
 
 fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {

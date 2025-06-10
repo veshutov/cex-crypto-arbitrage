@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::{
     exchanges::{gateway::ExchangeGateway, ExchangeName, OrderBookData},
     strategy::market_data::MarketData,
+    Result,
 };
 
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ impl ArbitrageEngine {
         }
     }
 
-    pub async fn start_order_book_processing(&mut self, symbols: Vec<String>) {
+    pub async fn start_order_book_processing(&mut self, symbols: Vec<String>) -> Result<()> {
         let market_data = self.market_data.clone();
         let mut order_book_receiver = self.exchange_gateway.order_book_receiver.take().unwrap();
 
@@ -43,10 +44,9 @@ impl ArbitrageEngine {
             }
         });
 
-        self.exchange_gateway
-            .subscribe_to_symbols(symbols)
-            .await
-            .unwrap();
+        self.exchange_gateway.subscribe_to_symbols(symbols).await?;
+
+        Ok(())
     }
 
     pub async fn find_arbitrage_opportunities(
@@ -54,7 +54,7 @@ impl ArbitrageEngine {
         symbol: &str,
         min_profit_percentage: Decimal,
         max_age_ms: u64,
-    ) -> Vec<ArbitrageOpportunity> {
+    ) -> Result<Vec<ArbitrageOpportunity>> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -77,7 +77,7 @@ impl ArbitrageEngine {
             .collect();
 
         if fresh_quotes.len() < 2 {
-            return opportunities;
+            return Ok(opportunities);
         }
 
         // Find arbitrage opportunities between all exchange pairs
@@ -124,7 +124,7 @@ impl ArbitrageEngine {
                 .partial_cmp(&a.net_spread_percentage)
                 .unwrap()
         });
-        opportunities
+        Ok(opportunities)
     }
 
     fn calculate_arbitrage(
