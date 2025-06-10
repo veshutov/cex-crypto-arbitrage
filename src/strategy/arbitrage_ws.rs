@@ -9,7 +9,7 @@ use crate::{
     exchanges::gate::GateExchange,
     exchanges::gateway::ExchangeGateway,
     exchanges::kucoin::KucoinExchange,
-    exchanges::Exchange,
+    exchanges::{Exchange, ExchangeName},
     Config, Result,
 };
 
@@ -20,16 +20,18 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         "SCA".to_string(),
         "XEM".to_string(),
     ];
-    let max_age_ms = 50_000;
-    let min_profit_percentage = Decimal::ZERO;
-
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
-    let market_data = MarketData::new();
+    let max_age_ms = 50_000;
+    let min_profit_percentage = Decimal::ZERO;
+
+    let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
+    let market_data = MarketData::new(&exchange_names);
     let mut exchange_gateway = ExchangeGateway::new();
+
     for exchange in exchanges {
         exchange_gateway.add_exchange(exchange);
     }

@@ -4,29 +4,36 @@ use tokio::sync::RwLock;
 
 use crate::exchanges::{ExchangeName, OrderBookData};
 
-type OrderBookKey = (String, ExchangeName);
+// Since we have a small number of exchanges, we can use a more efficient key structure
+type OrderBookKey = String; // Just the symbol
 type OrderBookValue = Arc<RwLock<OrderBookData>>;
 type OrderBookMap = Arc<DashMap<OrderBookKey, OrderBookValue>>;
 
 #[derive(Clone, Debug)]
 pub struct MarketData {
-    tickers: OrderBookMap,
+    exchange_books: Arc<DashMap<ExchangeName, OrderBookMap>>,
 }
 
 impl MarketData {
-    pub fn new() -> Self {
-        Self {
-            tickers: Arc::new(DashMap::new()),
+    pub fn new(exchanges: &[ExchangeName]) -> Self {
+        let exchange_books = Arc::new(DashMap::new());
+        // Pre-allocate for provided exchanges
+        for exchange in exchanges {
+            let symbol_map = Arc::new(DashMap::with_capacity(500)); // Pre-allocate for max symbols
+            exchange_books.insert(*exchange, symbol_map);
         }
+        Self { exchange_books }
     }
 
     pub async fn update_order_book(&self, new_order_book: OrderBookData) -> UpdateResult {
-        let key = (
-            new_order_book.symbol.clone(),
-            new_order_book.exchange_name,
-        );
+        let exchange = new_order_book.exchange_name;
+        let symbol = new_order_book.symbol.clone();
 
-        match self.tickers.get(&key) {
+        let symbol_map = self
+            .exchange_books
+            .get(&exchange)
+            .expect("Unknown exchange");
+        let update_result = match symbol_map.get(&symbol) {
             Some(quote_lock) => {
                 let mut current = quote_lock.write().await;
                 match new_order_book.timestamp.cmp(&current.timestamp) {
@@ -40,10 +47,11 @@ impl MarketData {
             }
             None => {
                 let quote_lock = Arc::new(RwLock::new(new_order_book));
-                self.tickers.insert(key, quote_lock);
+                symbol_map.insert(symbol, quote_lock);
                 UpdateResult::NewEntry
             }
-        }
+        };
+        update_result
     }
 
     pub async fn get_order_book(
@@ -51,8 +59,8 @@ impl MarketData {
         exchange: ExchangeName,
         symbol: &str,
     ) -> Option<OrderBookData> {
-        let key = (symbol.to_string(), exchange);
-        let quote_lock = self.tickers.get(&key)?;
+        let symbol_map = self.exchange_books.get(&exchange)?;
+        let quote_lock = symbol_map.get(symbol)?;
         let quote_data = quote_lock.read().await;
         Some(quote_data.clone())
     }
@@ -61,23 +69,17 @@ impl MarketData {
         &self,
         symbol: &str,
     ) -> HashMap<ExchangeName, OrderBookData> {
-        let mut result = HashMap::new();
+        let mut result = HashMap::with_capacity(10); // Pre-allocate for max exchanges
 
-        for entry in self.tickers.iter() {
-            if entry.key().0 == symbol {
-                let exchange = &entry.key().1;
-                let quote_data = entry.value().read().await;
-                result.insert(*exchange, quote_data.clone());
+        for entry in self.exchange_books.iter() {
+            let exchange = *entry.key();
+            if let Some(quote_lock) = entry.value().get(symbol) {
+                let quote_data = quote_lock.read().await;
+                result.insert(exchange, quote_data.clone());
             }
         }
 
         result
-    }
-}
-
-impl Default for MarketData {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
