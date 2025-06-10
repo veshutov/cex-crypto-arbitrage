@@ -13,7 +13,15 @@ use crate::strategy::market_data::MarketData;
 use crate::Config;
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) {
-    let symbols = vec!["UMA".to_string(), "SCA".to_string()];
+    let symbols = vec![
+        "AXL".to_string(),
+        "ULTI".to_string(),
+        "SCA".to_string(),
+        "XEM".to_string(),
+    ];
+    let max_age_ms = 50_000;
+    let min_profit_percentage = Decimal::ZERO;
+
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(
             cfg.bybit_api_key.clone(),
@@ -45,14 +53,19 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) {
     engine.start_order_book_processing(symbols.clone()).await;
 
     loop {
+        println!("{:?}", engine.market_data);
         for symbol in symbols.clone() {
             let opportunities = engine
-                .find_arbitrage_opportunities(symbol.as_str(), Decimal::ZERO, 100_000)
+                .find_arbitrage_opportunities(symbol.as_str(), min_profit_percentage, max_age_ms)
                 .await;
             opportunities.iter().take(10).for_each(|o| {
                 println!(
-                    "  ws: symbol: {}, profit per unit: {}, buy: {:?}, sell: {:?}",
-                    o.symbol, o.estimated_profit_per_unit, o.buy_exchange, o.sell_exchange
+                    "  ws: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
+                    o.symbol,
+                    o.estimated_profit_per_unit,
+                    o.net_spread_percentage,
+                    o.buy_exchange,
+                    o.sell_exchange
                 );
             });
         }

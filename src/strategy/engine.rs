@@ -21,7 +21,7 @@ pub struct ArbitrageOpportunity {
 }
 
 pub struct ArbitrageEngine {
-    market_data: MarketData,
+    pub market_data: MarketData,
     exchange_gateway: ExchangeGateway,
 }
 
