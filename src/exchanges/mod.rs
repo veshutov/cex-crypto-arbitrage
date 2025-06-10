@@ -8,10 +8,9 @@ pub use error::*;
 
 use async_trait::async_trait;
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ExchangeName {
     Bybit,
     Kucoin,
@@ -32,6 +31,8 @@ pub trait Exchange: Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct ExchangeConfig {
+    pub api_key: String,
+    pub api_secret: String,
     pub maker_fee: Decimal,
     pub taker_fee: Decimal,
 }
@@ -41,7 +42,7 @@ pub struct SubscriptionConfig {
     pub symbols: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct TickerData {
     pub symbol: String,
     pub best_bid_price: Decimal,
@@ -49,7 +50,7 @@ pub struct TickerData {
     pub volume_24h: Decimal,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct OrderBookData {
     pub exchange_name: ExchangeName,
     pub symbol: String,

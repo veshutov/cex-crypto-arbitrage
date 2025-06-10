@@ -27,24 +27,9 @@ pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
 async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOpportunity>> {
     let mut opportunities = Vec::new();
     let exchanges: Vec<Box<dyn Exchange>> = vec![
-        Box::new(BybitExchange::new(
-            cfg.bybit.api_key.clone(),
-            cfg.bybit.api_secret.clone(),
-            cfg.bybit.taker_fee,
-            cfg.bybit.maker_fee,
-        )),
-        Box::new(KucoinExchange::new(
-            cfg.kucoin.api_key.clone(),
-            cfg.kucoin.api_secret.clone(),
-            cfg.kucoin.taker_fee,
-            cfg.kucoin.maker_fee,
-        )),
-        Box::new(GateExchange::new(
-            cfg.gate.api_key.clone(),
-            cfg.gate.api_secret.clone(),
-            cfg.gate.taker_fee,
-            cfg.gate.maker_fee,
-        )),
+        Box::new(BybitExchange::new(cfg.bybit.clone())),
+        Box::new(KucoinExchange::new(cfg.kucoin.clone())),
+        Box::new(GateExchange::new(cfg.gate.clone())),
     ];
 
     // Get all tickers with prices from both exchanges

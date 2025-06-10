@@ -18,25 +18,14 @@ use crate::exchanges::{
 
 pub struct KucoinExchange {
     client: Client,
-    api_key: String,
-    api_secret: String,
-    taker_fee: Decimal,
-    maker_fee: Decimal,
+    config: ExchangeConfig,
 }
 
 impl KucoinExchange {
-    pub fn new(
-        api_key: String,
-        api_secret: String,
-        taker_fee: Decimal,
-        maker_fee: Decimal,
-    ) -> Self {
+    pub fn new(config: ExchangeConfig) -> Self {
         Self {
             client: Client::new(),
-            api_key,
-            api_secret,
-            taker_fee,
-            maker_fee,
+            config,
         }
     }
 }
@@ -88,10 +77,7 @@ impl Exchange for KucoinExchange {
     }
 
     fn config(&self) -> ExchangeConfig {
-        ExchangeConfig {
-            maker_fee: self.maker_fee,
-            taker_fee: self.taker_fee,
-        }
+        self.config.clone()
     }
 
     async fn subscribe_orderbook(

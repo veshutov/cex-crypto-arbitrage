@@ -1,15 +1,8 @@
 use rust_decimal::Decimal;
 use std::{str::FromStr, sync::Arc};
+use crate::exchanges::ExchangeConfig;
 
 pub type Config = Arc<Configuration>;
-
-#[derive(Debug, Clone)]
-pub struct ExchangeConfig {
-    pub api_key: String,
-    pub api_secret: String,
-    pub taker_fee: Decimal,
-    pub maker_fee: Decimal,
-}
 
 pub struct Configuration {
     /// The environment in which to run the application.
