@@ -1,14 +1,15 @@
 pub mod bybit;
+pub mod error;
 pub mod gate;
-pub mod kucoin;
 pub mod gateway;
+pub mod kucoin;
+
+pub use error::*;
 
 use async_trait::async_trait;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio::sync::mpsc;
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum ExchangeName {
@@ -57,16 +58,4 @@ pub struct OrderBookData {
     pub best_ask_price: Decimal,
     pub best_ask_amount: Decimal,
     pub timestamp: u64,
-}
-
-#[derive(Debug, Error)]
-pub enum ExchangeError {
-    #[error("API request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
-    #[error("Invalid response: {0}")]
-    InvalidResponse(String),
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
-    #[error("Authentication failed")]
-    AuthenticationFailed,
 }
