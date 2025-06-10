@@ -97,8 +97,7 @@ impl Exchange for KucoinExchange {
             .unwrap();
 
         let (ws_stream, _) = connect_async(format!("{}?token={}", ws_endpoint, token))
-            .await
-            .expect("Failed to connect");
+            .await?;
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to order book for each symbol with a unique ID
@@ -111,8 +110,7 @@ impl Exchange for KucoinExchange {
 
             write
                 .send(Message::Text(subscribe_msg.to_string().into()))
-                .await
-                .unwrap();
+                .await?;
         }
 
         let mut rx = ping(ping_interval_ms as u64).await;
@@ -121,7 +119,7 @@ impl Exchange for KucoinExchange {
             loop {
                 // Ping
                 if let Ok(ping) = rx.try_recv() {
-                    write.send(Message::Text(ping.into())).await.unwrap();
+                    write.send(Message::Text(ping.into())).await.expect("Error sending ping to kucoin");
                 }
 
                 if let Some(msg) = read.next().await {

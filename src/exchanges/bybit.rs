@@ -86,7 +86,7 @@ impl Exchange for BybitExchange {
         sender: mpsc::UnboundedSender<OrderBookData>,
     ) -> Result<(), ExchangeError> {
         let url = "wss://stream.bybit.com/v5/public/linear";
-        let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+        let (ws_stream, _) = connect_async(url).await?;
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to order book for all symbols
@@ -97,15 +97,14 @@ impl Exchange for BybitExchange {
 
         write
             .send(Message::Text(subscribe_msg.to_string().into()))
-            .await
-            .unwrap();
+            .await?;
         let mut rx = ping().await;
 
         tokio::spawn(async move {
             loop {
                 // Ping
                 if let Ok(ping) = rx.try_recv() {
-                    write.send(Message::Text(ping.into())).await.unwrap();
+                    write.send(Message::Text(ping.into())).await.expect("Error sending ping to bybit");
                 }
 
                 if let Some(msg) = read.next().await {
