@@ -68,12 +68,14 @@ impl MarketData {
         Some(quote_data)
     }
 
-    pub fn get_all_order_book_for_symbol(&self, symbol: &str) -> HashMap<ExchangeName, &OrderBook> {
-        let mut result = HashMap::with_capacity(10); // Pre-allocate for max exchanges
+    pub fn get_all_order_book_for_symbol(&self, symbol: &str) -> HashMap<ExchangeName, OrderBook> {
+        let exchanges = self.exchange_books.keys();
+        let mut result = HashMap::with_capacity(exchanges.len());
 
-        for exchange in self.exchange_books.keys() {
-            if let Some(quote_data) = self.get_order_book(*exchange, symbol) {
-                result.insert(*exchange, quote_data);
+        for exchange in exchanges {
+            if let Some(quote_ptr) = self.exchange_books.get(exchange).and_then(|m| m.get(symbol)) {
+                let quote_data = unsafe { &*quote_ptr.load(std::sync::atomic::Ordering::Acquire) };
+                result.insert(*exchange, quote_data.clone());
             }
         }
 
