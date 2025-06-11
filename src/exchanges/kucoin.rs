@@ -10,10 +10,13 @@ use tokio::{
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
-    TickerData,
+    TickerData, OrderRequest, OrderResponse, OrderSide, OrderType,
 };
 
 pub struct KucoinExchange {
@@ -27,6 +30,21 @@ impl KucoinExchange {
             client: Client::new(),
             config,
         }
+    }
+
+    fn generate_signature(&self, timestamp: u64, method: &str, endpoint: &str, body: &str) -> String {
+        let message = format!("{}{}{}{}", timestamp, method, endpoint, body);
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.config.api_secret.as_bytes())
+            .expect("HMAC can take key of any size");
+        mac.update(message.as_bytes());
+        BASE64.encode(mac.finalize().into_bytes())
+    }
+
+    fn generate_passphrase(&self) -> String {
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.config.api_secret.as_bytes())
+            .expect("HMAC can take key of any size");
+        mac.update(self.config.api_passphrase.as_ref().unwrap().as_bytes());
+        BASE64.encode(mac.finalize().into_bytes())
     }
 }
 
@@ -183,6 +201,132 @@ impl Exchange for KucoinExchange {
         });
 
         Ok(())
+    }
+
+    async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
+        let url = "https://api-futures.kucoin.com/api/v1/orders";
+        let endpoint = "/api/v1/orders";
+        
+        let side = match order.side {
+            OrderSide::Buy => "buy",
+            OrderSide::Sell => "sell",
+        };
+
+        let order_type = match order.order_type {
+            OrderType::Market => "market",
+            OrderType::Limit => "limit",
+        };
+
+        let mut params = serde_json::json!({
+            "symbol": format!("{}USDTM", order.symbol),
+            "side": side,
+            "type": order_type,
+            "size": order.quantity.to_string(),
+            "leverage": 1,
+        });
+
+        if let Some(price) = order.price {
+            params["price"] = serde_json::Value::String(price.to_string());
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let body = params.to_string();
+        let signature = self.generate_signature(timestamp, "POST", endpoint, &body);
+        let passphrase = self.generate_passphrase();
+
+        let response = self.client
+            .post(url)
+            .header("KC-API-KEY", &self.config.api_key)
+            .header("KC-API-SIGN", signature)
+            .header("KC-API-TIMESTAMP", timestamp.to_string())
+            .header("KC-API-PASSPHRASE", passphrase)
+            .header("KC-API-KEY-VERSION", "3")
+            .json(&params)
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        if data["code"].as_str().unwrap_or("") != "200000" {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["msg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let result = &data["data"];
+        Ok(OrderResponse {
+            order_id: result["id"].as_str().unwrap_or_default().to_string(),
+            symbol: order.symbol,
+            side: order.side,
+            order_type: order.order_type,
+            quantity: order.quantity,
+            price: order.price,
+            status: result["status"].as_str().unwrap_or_default().to_string(),
+        })
+    }
+
+    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
+        let url = "https://api-futures.kucoin.com/api/v1/orders";
+        let endpoint = "/api/v1/orders";
+        
+        let order_side = match side {
+            OrderSide::Buy => "sell", // If we're long, we need to sell to close
+            OrderSide::Sell => "buy", // If we're short, we need to buy to close
+        };
+
+        let params = serde_json::json!({
+            "symbol": format!("{}USDTM", symbol),
+            "side": order_side,
+            "type": "market",
+            "leverage": 1,
+            "closeOrder": true,
+            "reduceOnly": true,
+        });
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let body = params.to_string();
+        let signature = self.generate_signature(timestamp, "POST", endpoint, &body);
+        let passphrase = self.generate_passphrase();
+
+        let response = self.client
+            .post(url)
+            .header("KC-API-KEY", &self.config.api_key)
+            .header("KC-API-SIGN", signature)
+            .header("KC-API-TIMESTAMP", timestamp.to_string())
+            .header("KC-API-PASSPHRASE", passphrase)
+            .header("KC-API-KEY-VERSION", "3")
+            .json(&params)
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        if data["code"].as_str().unwrap_or("") != "200000" {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["msg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let result = &data["data"];
+        Ok(OrderResponse {
+            order_id: result["id"].as_str().unwrap_or_default().to_string(),
+            symbol: symbol.to_string(),
+            side,
+            order_type: OrderType::Market,
+            quantity: Decimal::ZERO, // For close position, quantity is not relevant
+            price: None,
+            status: result["status"].as_str().unwrap_or_default().to_string(),
+        })
     }
 }
 

@@ -38,6 +38,7 @@ impl Configuration {
         let bybit = ExchangeConfig {
             api_key: env_var("BYBIT_API_KEY"),
             api_secret: env_var("BYBIT_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("BYBIT_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse BYBIT_TAKER_FEE"),
@@ -49,6 +50,7 @@ impl Configuration {
         let kucoin = ExchangeConfig {
             api_key: env_var("KUCOIN_API_KEY"),
             api_secret: env_var("KUCOIN_API_SECRET"),
+            api_passphrase: Some(env_var("KUCOIN_API_PASSPHRASE")),
             taker_fee: env_var("KUCOIN_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse KUCOIN_TAKER_FEE"),
@@ -60,6 +62,7 @@ impl Configuration {
         let bingx = ExchangeConfig {
             api_key: env_var("BINGX_API_KEY"),
             api_secret: env_var("BINGX_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("BINGX_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse BINGX_TAKER_FEE"),
@@ -71,6 +74,7 @@ impl Configuration {
         let bitget = ExchangeConfig {
             api_key: env_var("BITGET_API_KEY"),
             api_secret: env_var("BITGET_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("BITGET_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse BITGET_TAKER_FEE"),
@@ -82,6 +86,7 @@ impl Configuration {
         let gate = ExchangeConfig {
             api_key: env_var("GATE_API_KEY"),
             api_secret: env_var("GATE_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("GATE_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse GATE_TAKER_FEE"),
@@ -93,6 +98,7 @@ impl Configuration {
         let htx = ExchangeConfig {
             api_key: env_var("HTX_API_KEY"),
             api_secret: env_var("HTX_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("HTX_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse HTX_TAKER_FEE"),
@@ -104,6 +110,7 @@ impl Configuration {
         let mexc = ExchangeConfig {
             api_key: env_var("MEXC_API_KEY"),
             api_secret: env_var("MEXC_API_SECRET"),
+            api_passphrase: None,
             taker_fee: env_var("MEXC_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse MEXC_TAKER_FEE"),
@@ -115,6 +122,7 @@ impl Configuration {
         let okx = ExchangeConfig {
             api_key: env_var("OKX_API_KEY"),
             api_secret: env_var("OKX_API_SECRET"),
+            api_passphrase: Some(env_var("OKX_API_PASSPHRASE")),
             taker_fee: env_var("OKX_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse OKX_TAKER_FEE"),

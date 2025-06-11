@@ -5,10 +5,14 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use hmac::{Hmac, Mac};
+use sha2::Sha512;
+use hex;
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
     TickerData,
+    OrderRequest, OrderResponse, OrderSide, OrderType,
 };
 
 pub struct GateExchange {
@@ -22,6 +26,14 @@ impl GateExchange {
             client: Client::new(),
             config,
         }
+    }
+
+    fn generate_signature(&self, method: &str, url: &str, query_string: &str, payload: &str, timestamp: u64) -> String {
+        let message = format!("{}\n{}\n{}\n{}\n{}", method, url, query_string, payload, timestamp);
+        let mut mac = Hmac::<Sha512>::new_from_slice(self.config.api_secret.as_bytes())
+            .expect("HMAC can take key of any size");
+        mac.update(message.as_bytes());
+        hex::encode(mac.finalize().into_bytes())
     }
 }
 
@@ -154,5 +166,122 @@ impl Exchange for GateExchange {
         });
 
         Ok(())
+    }
+
+    async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
+        let url = "/api/v4/futures/usdt/orders";
+        let full_url = format!("https://api.gateio.ws{}", url);
+        
+        let order_type = match order.order_type {
+            OrderType::Market => "market",
+            OrderType::Limit => "limit",
+        };
+
+        // Convert quantity to positive for buy orders and negative for sell orders
+        let size = match order.side {
+            OrderSide::Buy => order.quantity,
+            OrderSide::Sell => -order.quantity,
+        };
+
+        let mut params = serde_json::json!({
+            "contract": format!("{}_USDT", order.symbol),
+            "size": size.to_string(),
+            "type": order_type,
+            "tif": "gtc",
+        });
+
+        if let Some(price) = order.price {
+            params["price"] = serde_json::Value::String(price.to_string());
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let payload = params.to_string();
+        let signature = self.generate_signature("POST", url, "", &payload, timestamp);
+
+        let response = self.client
+            .post(&full_url)
+            .header("KEY", &self.config.api_key)
+            .header("Timestamp", timestamp.to_string())
+            .header("SIGN", signature)
+            .json(&params)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "Failed to place order: {}",
+                response.status()
+            )));
+        }
+
+        let data: Value = response.json().await?;
+
+        Ok(OrderResponse {
+            order_id: data["id"].as_str().unwrap_or_default().to_string(),
+            symbol: order.symbol,
+            side: order.side,
+            order_type: order.order_type,
+            quantity: order.quantity,
+            price: order.price,
+            status: data["status"].as_str().unwrap_or_default().to_string(),
+        })
+    }
+
+    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
+        let url = "/api/v4/futures/usdt/orders";
+        let full_url = format!("https://api.gateio.ws{}", url);
+        
+        let order_side = match side {
+            OrderSide::Buy => "sell", // If we're long, we need to sell to close
+            OrderSide::Sell => "buy", // If we're short, we need to buy to close
+        };
+
+        let params = serde_json::json!({
+            "contract": format!("{}_USDT", symbol),
+            "type": "market",
+            "tif": "gtc",
+            "close": true,
+            "reduce_only": true,
+        });
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let payload = params.to_string();
+        let signature = self.generate_signature("POST", url, "", &payload, timestamp);
+
+        let response = self.client
+            .post(&full_url)
+            .header("KEY", &self.config.api_key)
+            .header("Timestamp", timestamp.to_string())
+            .header("SIGN", signature)
+            .json(&params)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "Failed to close position: {}",
+                response.status()
+            )));
+        }
+
+        let data: Value = response.json().await?;
+
+        Ok(OrderResponse {
+            order_id: data["id"].as_str().unwrap_or_default().to_string(),
+            symbol: symbol.to_string(),
+            side,
+            order_type: OrderType::Market,
+            quantity: Decimal::ZERO, // For close position, quantity is not relevant
+            price: None,
+            status: data["status"].as_str().unwrap_or_default().to_string(),
+        })
     }
 }
