@@ -25,7 +25,7 @@ pub trait Exchange: Send + Sync {
     async fn subscribe_orderbook(
         &mut self,
         config: SubscriptionConfig,
-        sender: mpsc::UnboundedSender<OrderBookData>,
+        sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError>;
 }
 
@@ -51,7 +51,7 @@ pub struct TickerData {
 }
 
 #[derive(Debug, Clone)]
-pub struct OrderBookData {
+pub struct OrderBook {
     pub exchange_name: ExchangeName,
     pub symbol: String,
     pub best_bid_amount: Decimal,
@@ -59,4 +59,10 @@ pub struct OrderBookData {
     pub best_ask_price: Decimal,
     pub best_ask_amount: Decimal,
     pub timestamp: u64,
+}
+
+impl OrderBook {
+    pub fn initial(exchange_name: ExchangeName, symbol: String) -> Self {
+        Self { exchange_name, symbol, best_bid_amount: Decimal::ZERO, best_bid_price: Decimal::ZERO, best_ask_price: Decimal::ZERO, best_ask_amount: Decimal::ZERO, timestamp: 0 }
+    }
 }

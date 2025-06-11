@@ -29,7 +29,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     let min_profit_percentage = Decimal::ZERO;
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
-    let market_data = MarketData::new(&exchange_names);
+    let market_data = MarketData::new(&exchange_names, &symbols);
     let mut exchange_gateway = ExchangeGateway::new();
 
     for exchange in exchanges {
@@ -51,7 +51,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
                     "  ws: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
                     o.symbol,
                     o.estimated_profit_per_unit,
-                    o.net_spread_percentage,
+                    o.net_profit_percentage,
                     o.buy_exchange,
                     o.sell_exchange
                 );

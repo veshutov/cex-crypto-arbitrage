@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
     TickerData,
 };
 
@@ -75,7 +75,7 @@ impl Exchange for GateExchange {
     async fn subscribe_orderbook(
         &mut self,
         config: SubscriptionConfig,
-        sender: mpsc::UnboundedSender<OrderBookData>,
+        sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError> {
         let url = "wss://fx-ws.gateio.ws/v4/ws/usdt";
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
@@ -126,7 +126,7 @@ impl Exchange for GateExchange {
 
                                 let timestamp = data["result"]["t"].as_i64().unwrap() as u64;
 
-                                let orderbook: OrderBookData = OrderBookData {
+                                let orderbook: OrderBook = OrderBook {
                                     symbol,
                                     best_ask_amount,
                                     best_ask_price,

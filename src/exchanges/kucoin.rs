@@ -12,7 +12,7 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
     TickerData,
 };
 
@@ -83,7 +83,7 @@ impl Exchange for KucoinExchange {
     async fn subscribe_orderbook(
         &mut self,
         config: SubscriptionConfig,
-        sender: mpsc::UnboundedSender<OrderBookData>,
+        sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError> {
         let token_url = "https://api-futures.kucoin.com/api/v1/bullet-public";
         let response = self.client.post(token_url).send().await?;
@@ -155,7 +155,7 @@ impl Exchange for KucoinExchange {
                                 let timestamp =
                                     data["data"]["ts"].as_i64().unwrap() as u64 / 1_000_000;
 
-                                let orderbook: OrderBookData = OrderBookData {
+                                let orderbook: OrderBook = OrderBook {
                                     symbol,
                                     best_ask_amount,
                                     best_ask_price,

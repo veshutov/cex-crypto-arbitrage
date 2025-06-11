@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::exchanges::{Exchange, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig};
+use crate::exchanges::{Exchange, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig};
 
 pub struct ExchangeGateway {
-    pub order_book_receiver: Option<mpsc::UnboundedReceiver<OrderBookData>>,
+    pub order_book_receiver: Option<mpsc::UnboundedReceiver<OrderBook>>,
     pub exchanges: HashMap<ExchangeName, Box<dyn Exchange>>,
-    order_book_sender: mpsc::UnboundedSender<OrderBookData>,
+    order_book_sender: mpsc::UnboundedSender<OrderBook>,
 }
 
 impl ExchangeGateway {

@@ -2,7 +2,7 @@ use rust_decimal::Decimal;
 
 use crate::{
     engine::market_data::MarketData,
-    exchanges::{gateway::ExchangeGateway, ExchangeName, OrderBookData},
+    exchanges::{gateway::ExchangeGateway, ExchangeName, OrderBook},
     Result,
 };
 
@@ -27,7 +27,7 @@ impl Engine {
 
         tokio::spawn(async move {
             while let Some(order_book) = order_book_receiver.recv().await {
-                let _ = market_data.update_order_book(order_book).await;
+                let _ = market_data.update_order_book(order_book);
             }
         });
 
@@ -47,7 +47,7 @@ impl Engine {
             .unwrap()
             .as_millis() as u64;
 
-        let order_books = self.market_data.get_all_order_book_for_symbol(symbol).await;
+        let order_books = self.market_data.get_all_order_book_for_symbol(symbol);
         let mut opportunities = Vec::with_capacity(100);
 
         // Find arbitrage opportunities between all exchange pairs
@@ -98,8 +98,8 @@ impl Engine {
 
         // Sort by profitability
         opportunities.sort_by(|a, b| {
-            b.net_spread_percentage
-                .partial_cmp(&a.net_spread_percentage)
+            b.net_profit_percentage
+                .partial_cmp(&a.net_profit_percentage)
                 .unwrap()
         });
         Ok(opportunities)
@@ -110,8 +110,8 @@ impl Engine {
         symbol: &str,
         buy_exchange: ExchangeName,
         sell_exchange: ExchangeName,
-        buy_order_book: &OrderBookData,
-        sell_order_book: &OrderBookData,
+        buy_order_book: &OrderBook,
+        sell_order_book: &OrderBook,
         min_profit_percentage: Decimal,
     ) -> Option<ArbitrageOpportunity> {
         let buy_config = self.exchange_gateway.exchanges.get(&buy_exchange)?.config();
@@ -138,9 +138,13 @@ impl Engine {
             (buy_price * buy_config.taker_fee + sell_price * sell_config.taker_fee) * two;
         let net_profit = gross_spread - total_fees;
 
+        // Calculate percentages based on total transaction value
+        let total_transaction_value = buy_price + sell_price;
+        let gross_profit_percentage = (gross_spread / total_transaction_value) * hundred;
+        let net_profit_percentage = (net_profit / total_transaction_value) * hundred;
+
         // Early return if not profitable enough
-        let net_spread_percentage = (net_profit / buy_price) * hundred;
-        if net_spread_percentage < min_profit_percentage {
+        if net_profit_percentage < min_profit_percentage {
             return None;
         }
 
@@ -155,8 +159,8 @@ impl Engine {
             sell_exchange,
             buy_price,
             sell_price,
-            gross_spread_percentage: (gross_spread / buy_price) * hundred,
-            net_spread_percentage,
+            gross_profit_percentage,
+            net_profit_percentage,
             estimated_profit_per_unit: net_profit,
             max_volume,
             timestamp: buy_order_book.timestamp.max(sell_order_book.timestamp),
@@ -171,8 +175,8 @@ pub struct ArbitrageOpportunity {
     pub sell_exchange: ExchangeName,
     pub buy_price: Decimal,  // Ask price on buy exchange
     pub sell_price: Decimal, // Bid price on sell exchange
-    pub gross_spread_percentage: Decimal,
-    pub net_spread_percentage: Decimal, // After fees
+    pub gross_profit_percentage: Decimal,
+    pub net_profit_percentage: Decimal, // After fees
     pub estimated_profit_per_unit: Decimal,
     pub max_volume: Decimal,
     pub timestamp: u64,

@@ -12,7 +12,7 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBookData, SubscriptionConfig, TickerData,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig, TickerData,
 };
 
 pub struct BybitExchange {
@@ -83,7 +83,7 @@ impl Exchange for BybitExchange {
     async fn subscribe_orderbook(
         &mut self,
         config: SubscriptionConfig,
-        sender: mpsc::UnboundedSender<OrderBookData>,
+        sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError> {
         let url = "wss://stream.bybit.com/v5/public/linear";
         let (ws_stream, _) = connect_async(url).await?;
@@ -141,7 +141,7 @@ impl Exchange for BybitExchange {
                                         .unwrap()
                                         .replace("USDT", "");
 
-                                    let orderbook: OrderBookData = OrderBookData {
+                                    let orderbook: OrderBook = OrderBook {
                                         symbol,
                                         best_ask_price: asks[0].0,
                                         best_ask_amount: asks[0].1,

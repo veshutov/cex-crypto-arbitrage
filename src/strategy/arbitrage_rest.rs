@@ -100,8 +100,9 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                     let net_profit1 = gross_spread1 - total_fee1;
 
                     if net_profit1 > Decimal::ZERO {
-                        let gross_spread_percentage1 = (gross_spread1 / buy_price1) * hundred;
-                        let net_spread_percentage1 = (net_profit1 / buy_price1) * hundred;
+                        let total_transaction_value1 = buy_price1 + sell_price1;
+                        let gross_profit_percentage1 = (gross_spread1 / total_transaction_value1) * hundred;
+                        let net_profit_percentage1 = (net_profit1 / total_transaction_value1) * hundred;
 
                         opportunities.push(ArbitrageOpportunity {
                             symbol: symbol.clone(),
@@ -109,8 +110,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                             sell_exchange: *exchange2,
                             buy_price: buy_price1,
                             sell_price: sell_price1,
-                            gross_spread_percentage: gross_spread_percentage1,
-                            net_spread_percentage: net_spread_percentage1,
+                            gross_profit_percentage: gross_profit_percentage1,
+                            net_profit_percentage: net_profit_percentage1,
                             estimated_profit_per_unit: net_profit1,
                             max_volume: Decimal::ZERO,
                             timestamp: current_time,
@@ -126,8 +127,9 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                     let net_profit2 = gross_spread2 - total_fee2;
 
                     if net_profit2 > Decimal::ZERO {
-                        let gross_spread_percentage2 = (gross_spread2 / buy_price2) * hundred;
-                        let net_spread_percentage2 = (net_profit2 / buy_price2) * hundred;
+                        let total_transaction_value2 = buy_price2 + sell_price2;
+                        let gross_profit_percentage2 = (gross_spread2 / total_transaction_value2) * hundred;
+                        let net_profit_percentage2 = (net_profit2 / total_transaction_value2) * hundred;
 
                         opportunities.push(ArbitrageOpportunity {
                             symbol: symbol.clone(),
@@ -135,8 +137,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                             sell_exchange: *exchange1,
                             buy_price: buy_price2,
                             sell_price: sell_price2,
-                            gross_spread_percentage: gross_spread_percentage2,
-                            net_spread_percentage: net_spread_percentage2,
+                            gross_profit_percentage: gross_profit_percentage2,
+                            net_profit_percentage: net_profit_percentage2,
                             estimated_profit_per_unit: net_profit2,
                             max_volume: Decimal::ZERO,
                             timestamp: current_time,
@@ -148,8 +150,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     }
 
     opportunities.sort_by(|a, b| {
-        b.net_spread_percentage
-            .partial_cmp(&a.net_spread_percentage)
+        b.net_profit_percentage
+            .partial_cmp(&a.net_profit_percentage)
             .unwrap()
     });
 
@@ -158,7 +160,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
             "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
             o.symbol,
             o.estimated_profit_per_unit,
-            o.net_spread_percentage,
+            o.net_profit_percentage,
             o.buy_exchange,
             o.sell_exchange
         );
