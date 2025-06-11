@@ -234,11 +234,6 @@ impl Exchange for GateExchange {
     async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
         let url = "/api/v4/futures/usdt/orders";
         let full_url = format!("https://api.gateio.ws{}", url);
-        
-        let order_side = match side {
-            OrderSide::Buy => "sell", // If we're long, we need to sell to close
-            OrderSide::Sell => "buy", // If we're short, we need to buy to close
-        };
 
         let params = serde_json::json!({
             "contract": format!("{}_USDT", symbol),

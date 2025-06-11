@@ -122,7 +122,7 @@ impl Configuration {
         let okx = ExchangeConfig {
             api_key: env_var("OKX_API_KEY"),
             api_secret: env_var("OKX_API_SECRET"),
-            api_passphrase: Some(env_var("OKX_API_PASSPHRASE")),
+            api_passphrase: None,
             taker_fee: env_var("OKX_TAKER_FEE")
                 .parse::<Decimal>()
                 .expect("Unable to parse OKX_TAKER_FEE"),

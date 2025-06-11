@@ -11,4 +11,7 @@ pub enum ExchangeError {
 
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }
