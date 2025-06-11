@@ -1,18 +1,17 @@
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
+use hex;
+use hmac::{Hmac, Mac};
 use reqwest::Client;
 use rust_decimal::Decimal;
 use serde_json::Value;
+use sha2::{Digest, Sha512};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use hmac::{Hmac, Mac};
-use sha2::Sha512;
-use hex;
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
-    TickerData,
-    OrderRequest, OrderResponse, OrderSide, OrderType,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
+    OrderSide, SubscriptionConfig, TickerData,
 };
 
 pub struct GateExchange {
@@ -28,8 +27,19 @@ impl GateExchange {
         }
     }
 
-    fn generate_signature(&self, method: &str, url: &str, query_string: &str, payload: &str, timestamp: u64) -> String {
-        let message = format!("{}\n{}\n{}\n{}\n{}", method, url, query_string, payload, timestamp);
+    fn generate_signature(
+        &self,
+        method: &str,
+        url: &str,
+        query_string: &str,
+        payload: &str,
+        timestamp: u64,
+    ) -> String {
+        let payload_hash = hex::encode(Sha512::digest(payload));
+        let message = format!(
+            "{}\n{}\n{}\n{}\n{}",
+            method, url, query_string, payload_hash, timestamp
+        );
         let mut mac = Hmac::<Sha512>::new_from_slice(self.config.api_secret.as_bytes())
             .expect("HMAC can take key of any size");
         mac.update(message.as_bytes());
@@ -121,10 +131,8 @@ impl Exchange for GateExchange {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
                             if let Value::String(_) = data["result"]["s"] {
-                                let symbol = data["result"]["s"]
-                                    .as_str()
-                                    .unwrap()
-                                    .replace("_USDT", "");
+                                let symbol =
+                                    data["result"]["s"].as_str().unwrap().replace("_USDT", "");
 
                                 let best_ask_price = data["result"]["a"]
                                     .as_str()
@@ -175,11 +183,6 @@ impl Exchange for GateExchange {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = "/api/v4/futures/usdt/orders";
         let full_url = format!("https://api.gateio.ws{}", url);
-        
-        let order_type = match order.order_type {
-            OrderType::Market => "market",
-            OrderType::Limit => "limit",
-        };
 
         // Convert quantity to positive for buy orders and negative for sell orders
         let size = match order.side {
@@ -187,17 +190,15 @@ impl Exchange for GateExchange {
             OrderSide::Sell => -order.quantity,
         };
 
-        let mut params = serde_json::json!({
+        let params = serde_json::json!({
+            "text": format!("t-{}", order.id),
             "contract": self.map_symbol(&order.symbol),
-            "size": size.to_string(),
-            "type": order_type,
-            "tif": "gtc",
+            "size": size,
+            "price": "0",
+            "tif": "ioc",
         });
 
-        if let Some(price) = order.price {
-            params["price"] = serde_json::Value::String(price.to_string());
-        }
-
+        println!("params - {:?}", params);
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -206,7 +207,8 @@ impl Exchange for GateExchange {
         let payload = params.to_string();
         let signature = self.generate_signature("POST", url, "", &payload, timestamp);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&full_url)
             .header("KEY", &self.config.api_key)
             .header("Timestamp", timestamp.to_string())
@@ -225,24 +227,30 @@ impl Exchange for GateExchange {
         let data: Value = response.json().await?;
 
         Ok(OrderResponse {
-            order_id: data["id"].as_str().unwrap_or_default().to_string(),
-            symbol: order.symbol,
-            side: order.side,
-            order_type: order.order_type,
-            quantity: order.quantity,
-            price: order.price,
-            status: data["status"].as_str().unwrap_or_default().to_string(),
+            id: data["text"]
+                .as_str()
+                .unwrap()
+                .trim_start_matches("t-")
+                .to_string(),
+            exchange_order_id: data["id"].as_f64().unwrap().to_string(),
         })
     }
 
-    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
+    async fn close_position(
+        &self,
+        order_id: &str,
+        symbol: &str,
+        _side: OrderSide,
+    ) -> Result<OrderResponse, ExchangeError> {
         let url = "/api/v4/futures/usdt/orders";
         let full_url = format!("https://api.gateio.ws{}", url);
 
         let params = serde_json::json!({
+            "text": format!("t-{}", order_id),
             "contract": self.map_symbol(symbol),
-            "type": "market",
-            "tif": "gtc",
+            "price": "0",
+            "size": 0,
+            "tif": "ioc",
             "close": true,
             "reduce_only": true,
         });
@@ -255,7 +263,8 @@ impl Exchange for GateExchange {
         let payload = params.to_string();
         let signature = self.generate_signature("POST", url, "", &payload, timestamp);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&full_url)
             .header("KEY", &self.config.api_key)
             .header("Timestamp", timestamp.to_string())
@@ -274,13 +283,12 @@ impl Exchange for GateExchange {
         let data: Value = response.json().await?;
 
         Ok(OrderResponse {
-            order_id: data["id"].as_str().unwrap_or_default().to_string(),
-            symbol: symbol.to_string(),
-            side,
-            order_type: OrderType::Market,
-            quantity: Decimal::ZERO, // For close position, quantity is not relevant
-            price: None,
-            status: data["status"].as_str().unwrap_or_default().to_string(),
+            id: data["text"]
+                .as_str()
+                .unwrap()
+                .trim_start_matches("t-")
+                .to_string(),
+            exchange_order_id: data["id"].as_f64().unwrap().to_string(),
         })
     }
 }

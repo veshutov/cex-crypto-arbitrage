@@ -28,7 +28,12 @@ pub trait Exchange: Send + Sync {
         sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError>;
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError>;
-    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError>;
+    async fn close_position(
+        &self,
+        order_id: &str,
+        symbol: &str,
+        place_order_side: OrderSide,
+    ) -> Result<OrderResponse, ExchangeError>;
 }
 
 #[derive(Clone, Debug)]
@@ -71,33 +76,29 @@ pub enum OrderSide {
 }
 
 #[derive(Debug, Clone)]
-pub enum OrderType {
-    Market,
-    Limit,
-}
-
-#[derive(Debug, Clone)]
 pub struct OrderRequest {
+    pub id: String,
     pub symbol: String,
     pub side: OrderSide,
-    pub order_type: OrderType,
-    pub quantity: Decimal,
-    pub price: Option<Decimal>, // Required for limit orders, None for market orders
+    pub quantity: i32,
 }
 
 #[derive(Debug, Clone)]
 pub struct OrderResponse {
-    pub order_id: String,
-    pub symbol: String,
-    pub side: OrderSide,
-    pub order_type: OrderType,
-    pub quantity: Decimal,
-    pub price: Option<Decimal>,
-    pub status: String,
+    pub id: String,
+    pub exchange_order_id: String,
 }
 
 impl OrderBook {
     pub fn initial(exchange_name: ExchangeName, symbol: String) -> Self {
-        Self { exchange_name, symbol, best_bid_amount: Decimal::ZERO, best_bid_price: Decimal::ZERO, best_ask_price: Decimal::ZERO, best_ask_amount: Decimal::ZERO, timestamp: 0 }
+        Self {
+            exchange_name,
+            symbol,
+            best_bid_amount: Decimal::ZERO,
+            best_bid_price: Decimal::ZERO,
+            best_ask_price: Decimal::ZERO,
+            best_ask_amount: Decimal::ZERO,
+            timestamp: 0,
+        }
     }
 }

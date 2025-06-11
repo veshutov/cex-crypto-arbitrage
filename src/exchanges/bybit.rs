@@ -2,21 +2,20 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
+use hmac::{Hmac, Mac};
 use reqwest::Client;
 use rust_decimal::Decimal;
 use serde_json::Value;
+use sha2::Sha256;
 use tokio::{
     sync::mpsc::{self, Receiver},
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig, TickerData,
-    OrderRequest, OrderResponse, OrderSide, OrderType,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
+    OrderSide, SubscriptionConfig, TickerData,
 };
 
 pub struct BybitExchange {
@@ -33,11 +32,14 @@ impl BybitExchange {
     }
 
     fn generate_signature(&self, timestamp: u64, recv_window: u64, params: &str) -> String {
-        let message = format!("{}{}{}{}", timestamp, self.config.api_key, recv_window, params);
+        let message = format!(
+            "{}{}{}{}",
+            timestamp, self.config.api_key, recv_window, params
+        );
         let mut mac = Hmac::<Sha256>::new_from_slice(self.config.api_secret.as_bytes())
             .expect("HMAC can take key of any size");
         mac.update(message.as_bytes());
-        BASE64.encode(mac.finalize().into_bytes())
+        hex::encode(mac.finalize().into_bytes())
     }
 
     fn map_symbol(&self, symbol: &str) -> String {
@@ -120,7 +122,10 @@ impl Exchange for BybitExchange {
             loop {
                 // Ping
                 if let Ok(ping) = rx.try_recv() {
-                    write.send(Message::Text(ping.into())).await.expect("Error sending ping to bybit");
+                    write
+                        .send(Message::Text(ping.into()))
+                        .await
+                        .expect("Error sending ping to bybit");
                 }
 
                 if let Some(msg) = read.next().await {
@@ -133,7 +138,8 @@ impl Exchange for BybitExchange {
                                     let asks: Vec<(Decimal, Decimal)> = asks
                                         .iter()
                                         .filter_map(|item| {
-                                            let price = item[0].as_str()?.parse::<Decimal>().ok()?;
+                                            let price =
+                                                item[0].as_str()?.parse::<Decimal>().ok()?;
                                             let size = item[1].as_str()?.parse::<Decimal>().ok()?;
                                             Some((price, size))
                                         })
@@ -142,7 +148,8 @@ impl Exchange for BybitExchange {
                                     let bids: Vec<(Decimal, Decimal)> = bids
                                         .iter()
                                         .filter_map(|item| {
-                                            let price = item[0].as_str()?.parse::<Decimal>().ok()?;
+                                            let price =
+                                                item[0].as_str()?.parse::<Decimal>().ok()?;
                                             let size = item[1].as_str()?.parse::<Decimal>().ok()?;
                                             Some((price, size))
                                         })
@@ -190,28 +197,20 @@ impl Exchange for BybitExchange {
 
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api.bybit.com/v5/order/create";
-        
+
         let side = match order.side {
             OrderSide::Buy => "Buy",
             OrderSide::Sell => "Sell",
         };
 
-        let order_type = match order.order_type {
-            OrderType::Market => "Market",
-            OrderType::Limit => "Limit",
-        };
-
-        let mut params = serde_json::json!({
+        let params = serde_json::json!({
+            "orderLinkId": order.id,
             "category": "linear",
             "symbol": self.map_symbol(&order.symbol),
             "side": side,
-            "orderType": order_type,
+            "orderType": "Market",
             "qty": order.quantity.to_string(),
         });
-
-        if let Some(price) = order.price {
-            params["price"] = serde_json::Value::String(price.to_string());
-        }
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -220,7 +219,8 @@ impl Exchange for BybitExchange {
         let recv_window = 5000;
         let signature = self.generate_signature(timestamp, recv_window, &params.to_string());
 
-        let response = self.client
+        let response = self
+            .client
             .post(url)
             .header("X-BAPI-API-KEY", &self.config.api_key)
             .header("X-BAPI-TIMESTAMP", timestamp.to_string())
@@ -239,34 +239,33 @@ impl Exchange for BybitExchange {
             )));
         }
 
-        let result = &data["result"];
         Ok(OrderResponse {
-            order_id: result["orderId"].as_str().unwrap_or_default().to_string(),
-            symbol: order.symbol,
-            side: order.side,
-            order_type: order.order_type,
-            quantity: order.quantity,
-            price: order.price,
-            status: result["orderStatus"].as_str().unwrap_or_default().to_string(),
+            id: order.id,
+            exchange_order_id: data["result"]["orderId"].as_str().unwrap().to_string(),
         })
     }
 
-    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
+    async fn close_position(
+        &self,
+        order_id: &str,
+        symbol: &str,
+        side: OrderSide,
+    ) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api.bybit.com/v5/order/create";
-        
+
         let order_side = match side {
             OrderSide::Buy => "Sell", // If we're long, we need to sell to close
             OrderSide::Sell => "Buy", // If we're short, we need to buy to close
         };
 
         let params = serde_json::json!({
+            "orderLinkId": order_id,
             "category": "linear",
             "symbol": self.map_symbol(symbol),
             "side": order_side,
             "orderType": "Market",
-            "positionIdx": 0, // 0: One-Way Mode, 1: Buy side, 2: Sell side
+            "qty": "0",
             "reduceOnly": true,
-            "closePosition": true,
         });
 
         let timestamp = std::time::SystemTime::now()
@@ -276,7 +275,8 @@ impl Exchange for BybitExchange {
         let recv_window = 5000;
         let signature = self.generate_signature(timestamp, recv_window, &params.to_string());
 
-        let response = self.client
+        let response = self
+            .client
             .post(url)
             .header("X-BAPI-API-KEY", &self.config.api_key)
             .header("X-BAPI-TIMESTAMP", timestamp.to_string())
@@ -295,15 +295,9 @@ impl Exchange for BybitExchange {
             )));
         }
 
-        let result = &data["result"];
         Ok(OrderResponse {
-            order_id: result["orderId"].as_str().unwrap_or_default().to_string(),
-            symbol: symbol.to_string(),
-            side,
-            order_type: OrderType::Market,
-            quantity: Decimal::ZERO, // For close position, quantity is not relevant
-            price: None,
-            status: result["orderStatus"].as_str().unwrap_or_default().to_string(),
+            id: data["result"]["orderLinkId"].as_str().unwrap().to_string(),
+            exchange_order_id: data["result"]["orderId"].as_str().unwrap().to_string(),
         })
     }
 }

@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::exchanges::{Exchange, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig, OrderRequest, OrderResponse, OrderSide};
+use crate::exchanges::{
+    Exchange, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse, OrderSide,
+    SubscriptionConfig,
+};
 
 pub struct ExchangeGateway {
     pub order_book_receiver: Option<mpsc::UnboundedReceiver<OrderBook>>,
@@ -45,22 +48,25 @@ impl ExchangeGateway {
         exchange_name: ExchangeName,
         order: OrderRequest,
     ) -> Result<OrderResponse, ExchangeError> {
-        let exchange = self.exchanges.get(&exchange_name)
-            .ok_or_else(|| ExchangeError::InternalError(format!("Exchange {:?} not found", exchange_name)))?;
+        let exchange = self.exchanges.get(&exchange_name).ok_or_else(|| {
+            ExchangeError::InternalError(format!("Exchange {:?} not found", exchange_name))
+        })?;
 
         exchange.place_order(order).await
     }
 
     pub async fn close_position(
         &self,
+        order_id: &str,
         exchange_name: ExchangeName,
         symbol: String,
         side: OrderSide,
     ) -> Result<OrderResponse, ExchangeError> {
-        let exchange = self.exchanges.get(&exchange_name)
-            .ok_or_else(|| ExchangeError::InvalidResponse(format!("Exchange {:?} not found", exchange_name)))?;
+        let exchange = self.exchanges.get(&exchange_name).ok_or_else(|| {
+            ExchangeError::InvalidResponse(format!("Exchange {:?} not found", exchange_name))
+        })?;
 
-        exchange.close_position(&symbol, side).await
+        exchange.close_position(order_id, &symbol, side).await
     }
 }
 

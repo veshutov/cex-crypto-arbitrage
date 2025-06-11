@@ -1,22 +1,22 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures::{SinkExt, StreamExt};
+use hmac::{Hmac, Mac};
 use reqwest::Client;
 use rust_decimal::Decimal;
 use serde_json::Value;
+use sha2::Sha256;
 use tokio::{
     sync::mpsc::{self, Receiver},
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::exchanges::{
-    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, SubscriptionConfig,
-    TickerData, OrderRequest, OrderResponse, OrderSide, OrderType,
+    Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
+    OrderSide, SubscriptionConfig, TickerData,
 };
 
 pub struct KucoinExchange {
@@ -32,7 +32,13 @@ impl KucoinExchange {
         }
     }
 
-    fn generate_signature(&self, timestamp: u64, method: &str, endpoint: &str, body: &str) -> String {
+    fn generate_signature(
+        &self,
+        timestamp: u64,
+        method: &str,
+        endpoint: &str,
+        body: &str,
+    ) -> String {
         let message = format!("{}{}{}{}", timestamp, method, endpoint, body);
         let mut mac = Hmac::<Sha256>::new_from_slice(self.config.api_secret.as_bytes())
             .expect("HMAC can take key of any size");
@@ -118,8 +124,7 @@ impl Exchange for KucoinExchange {
             .as_i64()
             .unwrap();
 
-        let (ws_stream, _) = connect_async(format!("{}?token={}", ws_endpoint, token))
-            .await?;
+        let (ws_stream, _) = connect_async(format!("{}?token={}", ws_endpoint, token)).await?;
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to order book for each symbol with a unique ID
@@ -141,7 +146,10 @@ impl Exchange for KucoinExchange {
             loop {
                 // Ping
                 if let Ok(ping) = rx.try_recv() {
-                    write.send(Message::Text(ping.into())).await.expect("Error sending ping to kucoin");
+                    write
+                        .send(Message::Text(ping.into()))
+                        .await
+                        .expect("Error sending ping to kucoin");
                 }
 
                 if let Some(msg) = read.next().await {
@@ -210,28 +218,20 @@ impl Exchange for KucoinExchange {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api-futures.kucoin.com/api/v1/orders";
         let endpoint = "/api/v1/orders";
-        
+
         let side = match order.side {
             OrderSide::Buy => "buy",
             OrderSide::Sell => "sell",
         };
 
-        let order_type = match order.order_type {
-            OrderType::Market => "market",
-            OrderType::Limit => "limit",
-        };
-
-        let mut params = serde_json::json!({
+        let params = serde_json::json!({
+            "clientOid": order.id,
             "symbol": self.map_symbol(&order.symbol),
             "side": side,
-            "type": order_type,
-            "size": order.quantity.to_string(),
+            "type": "market",
+            "size": order.quantity,
             "leverage": 1,
         });
-
-        if let Some(price) = order.price {
-            params["price"] = serde_json::Value::String(price.to_string());
-        }
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -242,7 +242,8 @@ impl Exchange for KucoinExchange {
         let signature = self.generate_signature(timestamp, "POST", endpoint, &body);
         let passphrase = self.generate_passphrase();
 
-        let response = self.client
+        let response = self
+            .client
             .post(url)
             .header("KC-API-KEY", &self.config.api_key)
             .header("KC-API-SIGN", signature)
@@ -262,32 +263,25 @@ impl Exchange for KucoinExchange {
             )));
         }
 
-        let result = &data["data"];
         Ok(OrderResponse {
-            order_id: result["id"].as_str().unwrap_or_default().to_string(),
-            symbol: order.symbol,
-            side: order.side,
-            order_type: order.order_type,
-            quantity: order.quantity,
-            price: order.price,
-            status: result["status"].as_str().unwrap_or_default().to_string(),
+            id: data["data"]["clientOid"].as_str().unwrap().to_string(),
+            exchange_order_id: data["data"]["orderId"].as_str().unwrap().to_string(),
         })
     }
 
-    async fn close_position(&self, symbol: &str, side: OrderSide) -> Result<OrderResponse, ExchangeError> {
+    async fn close_position(
+        &self,
+        order_id: &str,
+        symbol: &str,
+        _side: OrderSide,
+    ) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api-futures.kucoin.com/api/v1/orders";
         let endpoint = "/api/v1/orders";
-        
-        let order_side = match side {
-            OrderSide::Buy => "sell", // If we're long, we need to sell to close
-            OrderSide::Sell => "buy", // If we're short, we need to buy to close
-        };
 
         let params = serde_json::json!({
+            "clientOid": order_id,
             "symbol": self.map_symbol(symbol),
-            "side": order_side,
             "type": "market",
-            "leverage": 1,
             "closeOrder": true,
             "reduceOnly": true,
         });
@@ -301,7 +295,8 @@ impl Exchange for KucoinExchange {
         let signature = self.generate_signature(timestamp, "POST", endpoint, &body);
         let passphrase = self.generate_passphrase();
 
-        let response = self.client
+        let response = self
+            .client
             .post(url)
             .header("KC-API-KEY", &self.config.api_key)
             .header("KC-API-SIGN", signature)
@@ -321,15 +316,9 @@ impl Exchange for KucoinExchange {
             )));
         }
 
-        let result = &data["data"];
         Ok(OrderResponse {
-            order_id: result["id"].as_str().unwrap_or_default().to_string(),
-            symbol: symbol.to_string(),
-            side,
-            order_type: OrderType::Market,
-            quantity: Decimal::ZERO, // For close position, quantity is not relevant
-            price: None,
-            status: result["status"].as_str().unwrap_or_default().to_string(),
+            id: data["data"]["clientOid"].as_str().unwrap().to_string(),
+            exchange_order_id: data["data"]["orderId"].as_str().unwrap().to_string(),
         })
     }
 }
