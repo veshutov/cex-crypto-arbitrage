@@ -7,7 +7,7 @@ use crate::{
     engine::{market_data::MarketData, Engine},
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
-        Exchange, ExchangeName, OrderRequest, OrderSide,
+        Exchange, ExchangeName,
     },
     Config, Result,
 };
