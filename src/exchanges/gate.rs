@@ -35,6 +35,10 @@ impl GateExchange {
         mac.update(message.as_bytes());
         hex::encode(mac.finalize().into_bytes())
     }
+
+    fn map_symbol(&self, symbol: &str) -> String {
+        format!("{}_USDT", symbol)
+    }
 }
 
 #[async_trait]
@@ -102,7 +106,7 @@ impl Exchange for GateExchange {
             "time": current_time,
             "channel": "futures.book_ticker",
             "event": "subscribe",
-            "payload": config.symbols.iter().map(|symbol| symbol.clone() + "_USDT").collect::<Vec<String>>()
+            "payload": config.symbols.iter().map(|symbol| self.map_symbol(symbol)).collect::<Vec<String>>()
         });
 
         write
@@ -184,7 +188,7 @@ impl Exchange for GateExchange {
         };
 
         let mut params = serde_json::json!({
-            "contract": format!("{}_USDT", order.symbol),
+            "contract": self.map_symbol(&order.symbol),
             "size": size.to_string(),
             "type": order_type,
             "tif": "gtc",
@@ -236,7 +240,7 @@ impl Exchange for GateExchange {
         let full_url = format!("https://api.gateio.ws{}", url);
 
         let params = serde_json::json!({
-            "contract": format!("{}_USDT", symbol),
+            "contract": self.map_symbol(symbol),
             "type": "market",
             "tif": "gtc",
             "close": true,

@@ -46,6 +46,10 @@ impl KucoinExchange {
         mac.update(self.config.api_passphrase.as_ref().unwrap().as_bytes());
         BASE64.encode(mac.finalize().into_bytes())
     }
+
+    fn map_symbol(&self, symbol: &str) -> String {
+        format!("{}USDTM", symbol)
+    }
 }
 
 #[async_trait]
@@ -123,7 +127,7 @@ impl Exchange for KucoinExchange {
             let subscribe_msg = serde_json::json!({
                 "id": id + 200, // Start from 200 to avoid conflicts
                 "type": "subscribe",
-                "topic": format!("/contractMarket/tickerV2:{}USDTM", symbol)
+                "topic": format!("/contractMarket/tickerV2:{}", self.map_symbol(symbol))
             });
 
             write
@@ -218,7 +222,7 @@ impl Exchange for KucoinExchange {
         };
 
         let mut params = serde_json::json!({
-            "symbol": format!("{}USDTM", order.symbol),
+            "symbol": self.map_symbol(&order.symbol),
             "side": side,
             "type": order_type,
             "size": order.quantity.to_string(),
@@ -280,7 +284,7 @@ impl Exchange for KucoinExchange {
         };
 
         let params = serde_json::json!({
-            "symbol": format!("{}USDTM", symbol),
+            "symbol": self.map_symbol(symbol),
             "side": order_side,
             "type": "market",
             "leverage": 1,

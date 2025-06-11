@@ -39,6 +39,10 @@ impl BybitExchange {
         mac.update(message.as_bytes());
         BASE64.encode(mac.finalize().into_bytes())
     }
+
+    fn map_symbol(&self, symbol: &str) -> String {
+        format!("{}USDT", symbol)
+    }
 }
 
 #[async_trait]
@@ -104,7 +108,7 @@ impl Exchange for BybitExchange {
         // Subscribe to order book for all symbols
         let subscribe_msg = serde_json::json!({
             "op": "subscribe",
-            "args": config.symbols.iter().map(|symbol| format!("orderbook.1.{}USDT", symbol)).collect::<Vec<String>>()
+            "args": config.symbols.iter().map(|symbol| format!("orderbook.1.{}", self.map_symbol(symbol))).collect::<Vec<String>>()
         });
 
         write
@@ -199,7 +203,7 @@ impl Exchange for BybitExchange {
 
         let mut params = serde_json::json!({
             "category": "linear",
-            "symbol": format!("{}USDT", order.symbol),
+            "symbol": self.map_symbol(&order.symbol),
             "side": side,
             "orderType": order_type,
             "qty": order.quantity.to_string(),
@@ -257,7 +261,7 @@ impl Exchange for BybitExchange {
 
         let params = serde_json::json!({
             "category": "linear",
-            "symbol": format!("{}USDT", symbol),
+            "symbol": self.map_symbol(symbol),
             "side": order_side,
             "orderType": "Market",
             "positionIdx": 0, // 0: One-Way Mode, 1: Buy side, 2: Sell side
