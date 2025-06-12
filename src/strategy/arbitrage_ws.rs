@@ -13,6 +13,7 @@ use crate::{
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     let symbols = vec![
+        "ANIME".to_string(),
         "SCA".to_string(),
         "DARK".to_string(),
         "RSS3".to_string(),
@@ -41,10 +42,10 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     loop {
         while let Ok(opportunity) = arbitrage_rx.try_recv() {
             println!(
-                "  ws: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
+                "  ws: {} – {:.2}, volume: {:?}, buy: {:?}, sell: {:?}",
                 opportunity.symbol,
-                opportunity.profit_per_unit,
                 opportunity.net_profit_percentage,
+                opportunity.max_volume * (opportunity.buy_price + opportunity.sell_price),
                 opportunity.buy_exchange,
                 opportunity.sell_exchange
             );
