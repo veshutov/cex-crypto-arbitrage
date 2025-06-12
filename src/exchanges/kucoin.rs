@@ -17,7 +17,7 @@ use ulid::Ulid;
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
-    OrderSide, SubscriptionConfig, TickerData,
+    OrderSide, SubscriptionConfig, TickerData, Position,
 };
 
 pub struct KucoinExchange {
@@ -323,6 +323,54 @@ impl Exchange for KucoinExchange {
             id: data["data"]["clientOid"].as_str().unwrap().to_string(),
             exchange_order_id: data["data"]["orderId"].as_str().unwrap().to_string(),
         })
+    }
+
+    async fn get_open_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        let url = "https://api-futures.kucoin.com/api/v1/positions";
+        let endpoint = "/api/v1/positions";
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let signature = self.generate_signature(timestamp, "GET", endpoint, "");
+        let passphrase = self.generate_passphrase();
+
+        let response = self
+            .client
+            .get(url)
+            .header("KC-API-KEY", &self.config.api_key)
+            .header("KC-API-SIGN", signature)
+            .header("KC-API-TIMESTAMP", timestamp.to_string())
+            .header("KC-API-PASSPHRASE", passphrase)
+            .header("KC-API-KEY-VERSION", "3")
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        if data["code"].as_str().unwrap_or("") != "200000" {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["msg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let positions = data["data"]
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .map(|item| {
+                Position {
+                    symbol: item["symbol"].as_str().unwrap().to_string(),
+                    size: item["currentQty"].as_i64().unwrap() as i32,
+                    entry_price: Decimal::try_from(item["avgEntryPrice"].as_f64().unwrap()).unwrap(),
+                    entry_time: item["openingTimestamp"].as_i64().unwrap() as u64,
+                }
+            })
+            .collect();
+
+        Ok(positions)
     }
 }
 

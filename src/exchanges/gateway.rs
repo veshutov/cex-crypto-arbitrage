@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse, OrderSide,
-    SubscriptionConfig,
+    Exchange, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse, OrderSide, Position, SubscriptionConfig
 };
 
 pub struct ExchangeGateway {
@@ -67,6 +66,14 @@ impl ExchangeGateway {
         })?;
 
         exchange.close_position(order_id, &symbol, side).await
+    }
+
+    pub async fn get_open_positions(&self, exchange_name: ExchangeName) -> Result<Vec<Position>, ExchangeError> {
+        let exchange = self.exchanges.get(&exchange_name).ok_or_else(|| {
+            ExchangeError::InvalidResponse(format!("Exchange {:?} not found", exchange_name))
+        })?;
+
+        exchange.get_open_positions().await
     }
 }
 

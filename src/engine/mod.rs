@@ -10,6 +10,7 @@ use crate::{
 };
 
 pub mod market_data;
+pub mod order_manager;
 
 pub struct ArbitrageEngine {
     pub market_data: MarketData,

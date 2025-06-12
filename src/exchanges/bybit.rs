@@ -15,7 +15,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
-    OrderSide, SubscriptionConfig, TickerData,
+    OrderSide, SubscriptionConfig, TickerData, Position,
 };
 
 pub struct BybitExchange {
@@ -301,6 +301,52 @@ impl Exchange for BybitExchange {
             id: data["result"]["orderLinkId"].as_str().unwrap().to_string(),
             exchange_order_id: data["result"]["orderId"].as_str().unwrap().to_string(),
         })
+    }
+
+    async fn get_open_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        let url = "https://api.bybit.com/v5/position/list";
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let recv_window = 5000;
+        let params = "category=linear&settleCoin=USDT";
+        let signature = self.generate_signature(timestamp, recv_window, params);
+
+        let response = self
+            .client
+            .get(format!("{}?{}", url, params))
+            .header("X-BAPI-API-KEY", &self.config.api_key)
+            .header("X-BAPI-TIMESTAMP", timestamp.to_string())
+            .header("X-BAPI-SIGN", signature)
+            .header("X-BAPI-RECV-WINDOW", recv_window.to_string())
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        if data["retCode"].as_i64().unwrap_or(1) != 0 {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["retMsg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let positions = data["result"]["list"]
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .map(|item| {
+                Position {
+                    symbol: item["symbol"].as_str().unwrap().to_string(),
+                    size: item["size"].as_str().unwrap().parse::<i32>().unwrap(),
+                    entry_price: item["avgPrice"].as_str().unwrap().parse::<Decimal>().unwrap(),
+                    entry_time: item["createdTime"].as_str().unwrap().parse::<u64>().unwrap(),
+                }
+            })
+            .collect();
+
+        Ok(positions)
     }
 }
 

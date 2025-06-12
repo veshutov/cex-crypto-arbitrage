@@ -34,6 +34,7 @@ pub trait Exchange: Send + Sync {
         symbol: &str,
         place_order_side: OrderSide,
     ) -> Result<OrderResponse, ExchangeError>;
+    async fn get_open_positions(&self) -> Result<Vec<Position>, ExchangeError>;
 }
 
 #[derive(Clone, Debug)]
@@ -87,6 +88,14 @@ pub struct OrderRequest {
 pub struct OrderResponse {
     pub id: String,
     pub exchange_order_id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct Position {
+    pub symbol: String,
+    pub size: i32,
+    pub entry_price: Decimal,
+    pub entry_time: u64,
 }
 
 impl OrderBook {

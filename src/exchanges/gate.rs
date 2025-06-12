@@ -11,7 +11,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
-    OrderSide, SubscriptionConfig, TickerData,
+    OrderSide, SubscriptionConfig, TickerData, Position,
 };
 
 pub struct GateExchange {
@@ -290,5 +290,51 @@ impl Exchange for GateExchange {
                 .to_string(),
             exchange_order_id: data["id"].as_f64().unwrap().to_string(),
         })
+    }
+
+    async fn get_open_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        let url = "/api/v4/futures/usdt/positions";
+        let params = "holding=true";
+        let full_url = format!("https://api.gateio.ws{}?{}", url, params);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+    
+        let signature = self.generate_signature("GET", url, params, "", timestamp);
+
+        let response = self
+            .client
+            .get(&full_url)
+            .header("KEY", &self.config.api_key)
+            .header("Timestamp", timestamp.to_string())
+            .header("SIGN", signature)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "Failed to get positions: {}",
+                response.status()
+            )));
+        }
+
+        let data: Value = response.json().await?;
+
+        let positions = data
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .map(|item| {
+                Position {
+                    symbol: item["contract"].as_str().unwrap().to_string(),
+                    size: item["size"].as_i64().unwrap() as i32,
+                    entry_price: item["entry_price"].as_str().unwrap().parse::<Decimal>().unwrap(),
+                    entry_time: item["open_time"].as_i64().unwrap() as u64 * 1000,
+                }
+            })
+            .collect();
+
+        Ok(positions)
     }
 }
