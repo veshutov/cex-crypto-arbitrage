@@ -7,7 +7,9 @@ pub type Config = Arc<Configuration>;
 pub struct Configuration {
     /// The environment in which to run the application.
     pub env: Environment,
-    pub min_volume_24h: Decimal,
+    pub symbol_min_volume_24h: Decimal,
+    pub order_book_max_age_ms: u64,
+    pub min_profit_percentage: Decimal,
     pub bybit: ExchangeConfig,
     pub kucoin: ExchangeConfig,
     pub bingx: ExchangeConfig,
@@ -31,9 +33,17 @@ impl Configuration {
             .parse::<Environment>()
             .expect("Unable to parse the value of the ENV environment variable. Please make sure it is a valid environment.");
 
-        let min_volume_24h = env_var("MIN_VOLUME_24H")
+        let symbol_min_volume_24h = env_var("SYMBOL_MIN_VOLUME_24H")
             .parse::<Decimal>()
             .expect("Unable to parse the value of the MIN_VOLUME_24H environment variable. Please make sure it is a valid decimal.");
+
+        let order_book_max_age_ms = env_var("ORDER_BOOK_MAX_AGE_MS")
+            .parse::<u64>()
+            .expect("Unable to parse the value of the ORDER_BOOK_MAX_AGE_MS environment variable. Please make sure it is a valid number.");
+
+        let min_profit_percentage = env_var("MIN_PROFIT_PERCENTAGE")
+            .parse::<Decimal>()
+            .expect("Unable to parse the value of the MIN_PROFIT_PERCENTAGE environment variable. Please make sure it is a valid decimal.");
 
         let bybit = ExchangeConfig {
             api_key: env_var("BYBIT_API_KEY"),
@@ -133,7 +143,9 @@ impl Configuration {
 
         Self {
             env,
-            min_volume_24h,
+            symbol_min_volume_24h,
+            order_book_max_age_ms,
+            min_profit_percentage,
             bybit,
             kucoin,
             bingx,

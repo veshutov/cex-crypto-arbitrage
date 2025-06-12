@@ -1,4 +1,3 @@
-use rust_decimal::Decimal;
 use std::time::Duration;
 
 use tokio::time::sleep;
@@ -24,8 +23,6 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
-    let max_age_ms = 50_000;
-    let min_profit_percentage = Decimal::ZERO;
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
     let market_data = MarketData::new(&exchange_names, &symbols);
@@ -43,7 +40,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         println!("{:?}", engine.market_data);
         for symbol in symbols.clone() {
             let opportunities = engine
-                .find_arbitrage_opportunities(symbol.as_str(), min_profit_percentage, max_age_ms)
+                .find_arbitrage_opportunities(symbol.as_str(), cfg.min_profit_percentage, cfg.order_book_max_age_ms)
                 .await?;
             opportunities.iter().take(10).for_each(|o| {
                 println!(

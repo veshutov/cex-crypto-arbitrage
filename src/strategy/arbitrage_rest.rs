@@ -31,6 +31,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
+    let symbols_to_skip = ["NEIRO", "ANIME", "SCA", "AXL"];
 
     // Get all tickers with prices from both exchanges
     let mut all_tickers_map: HashMap<String, Vec<(ExchangeName, TickerData, ExchangeConfig)>> =
@@ -49,7 +50,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
         let tickers = result?;
         for ticker in tickers {
-            if ticker.volume_24h < cfg.min_volume_24h {
+            if ticker.volume_24h < cfg.symbol_min_volume_24h {
                 continue;
             }
             let fee = exchange.config();
@@ -58,7 +59,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
             // Use direct HashMap entry API for more efficient insertion
             all_tickers_map
                 .entry(symbol)
-                .or_insert_with(|| Vec::with_capacity(3)) // Pre-allocate for max 3 exchanges
+                .or_insert_with(|| Vec::with_capacity(exchanges.len())) // Pre-allocate for max 3 exchanges
                 .push((exchange.name(), ticker, fee));
         }
     }
@@ -96,26 +97,31 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                 let buy_on_1_sell_on_2 = buy_price1 < sell_price1;
                 if buy_on_1_sell_on_2 {
                     let gross_spread1 = sell_price1 - buy_price1;
-                    let total_fee1 = (buy_price1 * fee1.taker_fee + sell_price1 * fee2.taker_fee) * two;
+                    let total_fee1 =
+                        (buy_price1 * fee1.taker_fee + sell_price1 * fee2.taker_fee) * two;
                     let net_profit1 = gross_spread1 - total_fee1;
 
                     if net_profit1 > Decimal::ZERO {
                         let total_transaction_value1 = buy_price1 + sell_price1;
-                        let gross_profit_percentage1 = (gross_spread1 / total_transaction_value1) * hundred;
-                        let net_profit_percentage1 = (net_profit1 / total_transaction_value1) * hundred;
+                        let gross_profit_percentage1 =
+                            (gross_spread1 / total_transaction_value1) * hundred;
+                        let net_profit_percentage1 =
+                            (net_profit1 / total_transaction_value1) * hundred;
 
-                        opportunities.push(ArbitrageOpportunity {
-                            symbol: symbol.clone(),
-                            buy_exchange: *exchange1,
-                            sell_exchange: *exchange2,
-                            buy_price: buy_price1,
-                            sell_price: sell_price1,
-                            gross_profit_percentage: gross_profit_percentage1,
-                            net_profit_percentage: net_profit_percentage1,
-                            estimated_profit_per_unit: net_profit1,
-                            max_volume: Decimal::ZERO,
-                            timestamp: current_time,
-                        });
+                        if net_profit_percentage1 >= cfg.min_profit_percentage {
+                            opportunities.push(ArbitrageOpportunity {
+                                symbol: symbol.clone(),
+                                buy_exchange: *exchange1,
+                                sell_exchange: *exchange2,
+                                buy_price: buy_price1,
+                                sell_price: sell_price1,
+                                gross_profit_percentage: gross_profit_percentage1,
+                                net_profit_percentage: net_profit_percentage1,
+                                estimated_profit_per_unit: net_profit1,
+                                max_volume: Decimal::ZERO,
+                                timestamp: current_time,
+                            });
+                        }
                     }
                 }
 
@@ -123,26 +129,31 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                 let buy_on_2_sell_on_1 = buy_price2 < sell_price2;
                 if buy_on_2_sell_on_1 {
                     let gross_spread2 = sell_price2 - buy_price2;
-                    let total_fee2 = (buy_price2 * fee2.taker_fee + sell_price2 * fee1.taker_fee) * two;
+                    let total_fee2 =
+                        (buy_price2 * fee2.taker_fee + sell_price2 * fee1.taker_fee) * two;
                     let net_profit2 = gross_spread2 - total_fee2;
 
                     if net_profit2 > Decimal::ZERO {
                         let total_transaction_value2 = buy_price2 + sell_price2;
-                        let gross_profit_percentage2 = (gross_spread2 / total_transaction_value2) * hundred;
-                        let net_profit_percentage2 = (net_profit2 / total_transaction_value2) * hundred;
+                        let gross_profit_percentage2 =
+                            (gross_spread2 / total_transaction_value2) * hundred;
+                        let net_profit_percentage2 =
+                            (net_profit2 / total_transaction_value2) * hundred;
 
-                        opportunities.push(ArbitrageOpportunity {
-                            symbol: symbol.clone(),
-                            buy_exchange: *exchange2,
-                            sell_exchange: *exchange1,
-                            buy_price: buy_price2,
-                            sell_price: sell_price2,
-                            gross_profit_percentage: gross_profit_percentage2,
-                            net_profit_percentage: net_profit_percentage2,
-                            estimated_profit_per_unit: net_profit2,
-                            max_volume: Decimal::ZERO,
-                            timestamp: current_time,
-                        });
+                        if net_profit_percentage2 >= cfg.min_profit_percentage {
+                            opportunities.push(ArbitrageOpportunity {
+                                symbol: symbol.clone(),
+                                buy_exchange: *exchange2,
+                                sell_exchange: *exchange1,
+                                buy_price: buy_price2,
+                                sell_price: sell_price2,
+                                gross_profit_percentage: gross_profit_percentage2,
+                                net_profit_percentage: net_profit_percentage2,
+                                estimated_profit_per_unit: net_profit2,
+                                max_volume: Decimal::ZERO,
+                                timestamp: current_time,
+                            });
+                        }
                     }
                 }
             }
@@ -155,16 +166,20 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
             .unwrap()
     });
 
-    opportunities.iter().take(10).for_each(|o| {
-        println!(
-            "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
-            o.symbol,
-            o.estimated_profit_per_unit,
-            o.net_profit_percentage,
-            o.buy_exchange,
-            o.sell_exchange
-        );
-    });
+    opportunities
+        .iter()
+        .filter(|o| !symbols_to_skip.contains(&o.symbol.as_str()))
+        .take(10)
+        .for_each(|o| {
+            println!(
+                "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
+                o.symbol,
+                o.estimated_profit_per_unit,
+                o.net_profit_percentage,
+                o.buy_exchange,
+                o.sell_exchange
+            );
+        });
 
     println!("------------------------------------------------------------------");
 
