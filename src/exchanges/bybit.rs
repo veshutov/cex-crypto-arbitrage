@@ -105,7 +105,7 @@ impl Exchange for BybitExchange {
     ) -> Result<(), ExchangeError> {
         let url = "wss://stream.bybit.com/v5/public/linear";
         let (ws_stream, _) = connect_async(url).await?;
-        let (mut write, mut read) = ws_stream.split();
+        let (mut exchange_wr, mut exchange_rc) = ws_stream.split();
 
         // Subscribe to order book for all symbols
         let subscribe_msg = serde_json::json!({
@@ -113,22 +113,22 @@ impl Exchange for BybitExchange {
             "args": config.symbols.iter().map(|symbol| format!("orderbook.1.{}", self.map_symbol(symbol))).collect::<Vec<String>>()
         });
 
-        write
+        exchange_wr
             .send(Message::Text(subscribe_msg.to_string().into()))
             .await?;
-        let mut rx = ping().await;
+        let mut ping_rc: Receiver<&'static str> = ping().await;
 
         tokio::spawn(async move {
             loop {
                 // Ping
-                if let Ok(ping) = rx.try_recv() {
-                    write
+                if let Ok(ping) = ping_rc.try_recv() {
+                    exchange_wr
                         .send(Message::Text(ping.into()))
                         .await
                         .expect("Error sending ping to bybit");
                 }
 
-                if let Some(msg) = read.next().await {
+                if let Some(msg) = exchange_rc.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
@@ -310,7 +310,7 @@ async fn ping() -> Receiver<&'static str> {
             if result.is_err() {
                 break;
             }
-            sleep(Duration::from_secs(20)).await;
+            sleep(Duration::from_secs(15)).await;
         }
     });
     rx

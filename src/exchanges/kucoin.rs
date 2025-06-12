@@ -125,7 +125,7 @@ impl Exchange for KucoinExchange {
             .unwrap();
 
         let (ws_stream, _) = connect_async(format!("{}?token={}", ws_endpoint, token)).await?;
-        let (mut write, mut read) = ws_stream.split();
+        let (mut exchange_wr, mut exchange_rc) = ws_stream.split();
 
         // Subscribe to order book for each symbol with a unique ID
         for (id, symbol) in config.symbols.iter().enumerate() {
@@ -135,24 +135,24 @@ impl Exchange for KucoinExchange {
                 "topic": format!("/contractMarket/tickerV2:{}", self.map_symbol(symbol))
             });
 
-            write
+            exchange_wr
                 .send(Message::Text(subscribe_msg.to_string().into()))
                 .await?;
         }
 
-        let mut rx = ping(ping_interval_ms as u64).await;
+        let mut ping_rc = ping(ping_interval_ms as u64).await;
 
         tokio::spawn(async move {
             loop {
                 // Ping
-                if let Ok(ping) = rx.try_recv() {
-                    write
+                if let Ok(ping) = ping_rc.try_recv() {
+                    exchange_wr
                         .send(Message::Text(ping.into()))
                         .await
                         .expect("Error sending ping to kucoin");
                 }
 
-                if let Some(msg) = read.next().await {
+                if let Some(msg) = exchange_rc.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();

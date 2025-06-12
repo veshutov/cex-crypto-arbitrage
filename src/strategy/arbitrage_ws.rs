@@ -13,10 +13,10 @@ use crate::{
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     let symbols = vec![
-        "AXL".to_string(),
-        "ULTI".to_string(),
         "SCA".to_string(),
-        "XEM".to_string(),
+        "DARK".to_string(),
+        "RSS3".to_string(),
+        "REX".to_string(),
     ];
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(cfg.bybit.clone())),
@@ -37,7 +37,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     engine.start_order_book_processing(symbols.clone()).await?;
 
     loop {
-        println!("{:?}", engine.market_data);
+        // println!("{:?}", engine.market_data);
         for symbol in symbols.clone() {
             let opportunities = engine
                 .find_arbitrage_opportunities(symbol.as_str(), cfg.min_profit_percentage, cfg.order_book_max_age_ms)

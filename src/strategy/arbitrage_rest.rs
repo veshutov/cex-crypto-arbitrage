@@ -168,7 +168,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
 
     opportunities
         .iter()
-        .filter(|o| !symbols_to_skip.contains(&o.symbol.as_str()))
+        // .filter(|o| !esymbols_to_skip.contains(&o.symbol.as_str()))
         .take(10)
         .for_each(|o| {
             println!(

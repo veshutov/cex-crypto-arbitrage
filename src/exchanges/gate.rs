@@ -105,7 +105,7 @@ impl Exchange for GateExchange {
     ) -> Result<(), ExchangeError> {
         let url = "wss://fx-ws.gateio.ws/v4/ws/usdt";
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-        let (mut write, mut read) = ws_stream.split();
+        let (mut exchange_wr, mut exchange_rc) = ws_stream.split();
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -119,14 +119,14 @@ impl Exchange for GateExchange {
             "payload": config.symbols.iter().map(|symbol| self.map_symbol(symbol)).collect::<Vec<String>>()
         });
 
-        write
+        exchange_wr
             .send(Message::Text(subscribe_msg.to_string().into()))
             .await
             .unwrap();
 
         tokio::spawn(async move {
             loop {
-                if let Some(msg) = read.next().await {
+                if let Some(msg) = exchange_rc.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
