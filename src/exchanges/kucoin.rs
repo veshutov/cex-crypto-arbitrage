@@ -13,6 +13,7 @@ use tokio::{
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use ulid::Ulid;
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
@@ -128,9 +129,9 @@ impl Exchange for KucoinExchange {
         let (mut exchange_wr, mut exchange_rc) = ws_stream.split();
 
         // Subscribe to order book for each symbol with a unique ID
-        for (id, symbol) in config.symbols.iter().enumerate() {
+        for symbol in config.symbols.iter() {
             let subscribe_msg = serde_json::json!({
-                "id": id + 200, // Start from 200 to avoid conflicts
+                "id": Ulid::new().to_string(),
                 "type": "subscribe",
                 "topic": format!("/contractMarket/tickerV2:{}", self.map_symbol(symbol))
             });
@@ -201,10 +202,12 @@ impl Exchange for KucoinExchange {
                         }
                         Err(e) => {
                             println!("Error while recieving data from kucoin {:?}", e);
+                            ping_rc.close();
                             break;
                         }
                         _ => {
                             println!("Error while recieving data from kucoin");
+                            ping_rc.close();
                             break;
                         }
                     }
@@ -325,16 +328,15 @@ impl Exchange for KucoinExchange {
 
 async fn ping(ping_interval_ms: u64) -> Receiver<String> {
     let (tx, rx) = mpsc::channel(100);
-    let mut id = 1;
     tokio::spawn(async move {
         loop {
             let result = tx
-                .send(format!("{{\"id\":\"{}\",\"type\":\"ping\"}}", id))
+                .send(format!("{{\"id\":\"{}\",\"type\":\"ping\"}}", Ulid::new()))
                 .await;
             if result.is_err() {
+                println!("Kucoin ping error {}", result.err().unwrap());
                 break;
             }
-            id += 1;
             sleep(Duration::from_millis(ping_interval_ms)).await;
         }
     });

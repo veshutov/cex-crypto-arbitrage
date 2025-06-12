@@ -181,10 +181,12 @@ impl Exchange for BybitExchange {
                         }
                         Err(e) => {
                             println!("Error while recieving data from bybit {:?}", e);
+                            ping_rc.close();
                             break;
                         }
-                        _ => {
-                            println!("Error while recieving data from bybit");
+                        r => {
+                            println!("Error while recieving data from bybit {:?}", r);
+                            ping_rc.close();
                             break;
                         }
                     }
