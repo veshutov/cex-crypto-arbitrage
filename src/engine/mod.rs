@@ -1,97 +1,125 @@
+use std::collections::HashMap;
+
 use rust_decimal::Decimal;
+use tokio::sync::mpsc;
 
 use crate::{
-    engine::market_data::MarketData,
-    exchanges::{gateway::ExchangeGateway, ExchangeName, OrderBook},
+    engine::market_data::{MarketData, UpdateResult},
+    exchanges::{gateway::ExchangeGateway, ExchangeConfig, ExchangeName, OrderBook},
     Result,
 };
 
 pub mod market_data;
 
-pub struct Engine {
+pub struct ArbitrageEngine {
     pub market_data: MarketData,
     exchange_gateway: ExchangeGateway,
 }
 
-impl Engine {
-    pub fn new(market_data: MarketData, exchange_gateway: ExchangeGateway) -> Engine {
-        Engine {
+impl ArbitrageEngine {
+    pub fn new(market_data: MarketData, exchange_gateway: ExchangeGateway) -> ArbitrageEngine {
+        ArbitrageEngine {
             market_data,
             exchange_gateway,
         }
     }
 
-    pub async fn start_order_book_processing(&mut self, symbols: Vec<String>) -> Result<()> {
-        let market_data = self.market_data.clone();
+    pub async fn start_processing(
+        &mut self, 
+        symbols: Vec<String>,
+        min_profit_percentage: Decimal,
+        order_book_max_age_ms: u64,
+    ) -> Result<mpsc::Receiver<ArbitrageOpportunity>> {
+        let (arbitrage_tx, arbitrage_rx) = mpsc::channel::<ArbitrageOpportunity>(1000);
         let mut order_book_receiver = self.exchange_gateway.order_book_receiver.take().unwrap();
+        
+        let market_data = self.market_data.clone();
+        let exchange_configs = self.exchange_gateway
+            .exchanges
+            .iter()
+            .map(|(name, exchange)| (*name, exchange.config()))
+            .collect();
 
         tokio::spawn(async move {
             while let Some(order_book) = order_book_receiver.recv().await {
-                let _ = market_data.update_order_book(order_book);
+                let symbol = order_book.symbol.clone();
+                
+                // Update the order book and check if it was actually updated
+                let update_result: UpdateResult = market_data.update_order_book(order_book);
+                if update_result == UpdateResult::Updated {
+                    // Order book was updated, check for arbitrage opportunities
+                    if let Ok(opportunities) = Self::find_arbitrage_opportunities(
+                        &market_data,
+                        &exchange_configs,
+                        &symbol,
+                        min_profit_percentage,
+                        order_book_max_age_ms,
+                    ).await {
+                        // Send each opportunity to the channel
+                        for opportunity in opportunities {
+                            if arbitrage_tx.send(opportunity).await.is_err() {
+                                println!("Engine receiver has been dropped, exit the loop");
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         });
 
         self.exchange_gateway.subscribe_to_symbols(symbols).await?;
 
-        Ok(())
+        Ok(arbitrage_rx)
     }
 
-    pub async fn find_arbitrage_opportunities(
-        &self,
+    async fn find_arbitrage_opportunities(
+        market_data: &MarketData,
+        exchange_configs: &HashMap<ExchangeName, ExchangeConfig>,
         symbol: &str,
         min_profit_percentage: Decimal,
-        max_age_ms: u64,
+        order_book_max_age_ms: u64,
     ) -> Result<Vec<ArbitrageOpportunity>> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
 
-        let order_books = self.market_data.get_all_order_book_for_symbol(symbol);
-        let mut opportunities = Vec::with_capacity(100);
+        let order_books = market_data.get_all_order_book_for_symbol(symbol);
+        let mut opportunities = Vec::with_capacity(10);
 
-        // Find arbitrage opportunities between all exchange pairs
-        let exchanges: Vec<_> = order_books.keys().collect();
-        let exchange_count = exchanges.len();
+        let order_books_count = order_books.len();
 
-        for i in 0..exchange_count {
-            for j in (i + 1)..exchange_count {
-                let buy_exchange = exchanges[i];
-                let sell_exchange = exchanges[j];
+        for i in 0..order_books_count {
+            for j in (i + 1)..order_books_count {
+                let buy_order_book = &order_books[i];
+                let sell_order_book = &order_books[j];
 
-                if let (Some(buy_order_book), Some(sell_order_book)) = (
-                    order_books.get(buy_exchange),
-                    order_books.get(sell_exchange),
+                // Skip stale quotes
+                if current_time.saturating_sub(buy_order_book.timestamp) > order_book_max_age_ms
+                    || current_time.saturating_sub(sell_order_book.timestamp) > order_book_max_age_ms
+                {
+                    continue;
+                }
+
+                // Check both directions
+                if let Some(opp) = Self::calculate_arbitrage(
+                    exchange_configs,
+                    symbol,
+                    buy_order_book,
+                    sell_order_book,
+                    min_profit_percentage,
                 ) {
-                    // Skip stale quotes
-                    if current_time.saturating_sub(buy_order_book.timestamp) > max_age_ms
-                        || current_time.saturating_sub(sell_order_book.timestamp) > max_age_ms
-                    {
-                        continue;
-                    }
+                    opportunities.push(opp);
+                }
 
-                    // Check both directions
-                    if let Some(opp) = self.calculate_arbitrage(
-                        symbol,
-                        *buy_exchange,
-                        *sell_exchange,
-                        buy_order_book,
-                        sell_order_book,
-                        min_profit_percentage,
-                    ) {
-                        opportunities.push(opp);
-                    }
-
-                    if let Some(opp) = self.calculate_arbitrage(
-                        symbol,
-                        *sell_exchange,
-                        *buy_exchange,
-                        sell_order_book,
-                        buy_order_book,
-                        min_profit_percentage,
-                    ) {
-                        opportunities.push(opp);
-                    }
+                if let Some(opp) = Self::calculate_arbitrage(
+                    exchange_configs,
+                    symbol,
+                    sell_order_book,
+                    buy_order_book,
+                    min_profit_percentage,
+                ) {
+                    opportunities.push(opp);
                 }
             }
         }
@@ -106,20 +134,14 @@ impl Engine {
     }
 
     fn calculate_arbitrage(
-        &self,
+        exchange_configs: &HashMap<ExchangeName, ExchangeConfig>,
         symbol: &str,
-        buy_exchange: ExchangeName,
-        sell_exchange: ExchangeName,
         buy_order_book: &OrderBook,
         sell_order_book: &OrderBook,
         min_profit_percentage: Decimal,
     ) -> Option<ArbitrageOpportunity> {
-        let buy_config = self.exchange_gateway.exchanges.get(&buy_exchange)?.config();
-        let sell_config = self
-            .exchange_gateway
-            .exchanges
-            .get(&sell_exchange)?
-            .config();
+        let buy_config = exchange_configs.get(&buy_order_book.exchange_name)?;
+        let sell_config = exchange_configs.get(&sell_order_book.exchange_name)?;
 
         let buy_price = buy_order_book.best_ask_price;
         let sell_price = sell_order_book.best_bid_price;
@@ -155,13 +177,13 @@ impl Engine {
 
         Some(ArbitrageOpportunity {
             symbol: symbol.to_string(),
-            buy_exchange,
-            sell_exchange,
+            buy_exchange: buy_order_book.exchange_name,
+            sell_exchange: sell_order_book.exchange_name,
             buy_price,
             sell_price,
             gross_profit_percentage,
             net_profit_percentage,
-            estimated_profit_per_unit: net_profit,
+            profit_per_unit: net_profit,
             max_volume,
             timestamp: buy_order_book.timestamp.max(sell_order_book.timestamp),
         })
@@ -177,7 +199,7 @@ pub struct ArbitrageOpportunity {
     pub sell_price: Decimal, // Bid price on sell exchange
     pub gross_profit_percentage: Decimal,
     pub net_profit_percentage: Decimal, // After fees
-    pub estimated_profit_per_unit: Decimal,
+    pub profit_per_unit: Decimal,
     pub max_volume: Decimal,
     pub timestamp: u64,
 }

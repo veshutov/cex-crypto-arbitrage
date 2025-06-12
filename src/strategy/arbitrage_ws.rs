@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::{
-    engine::{market_data::MarketData, Engine},
+    engine::{market_data::MarketData, ArbitrageEngine},
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
         Exchange, ExchangeName,
@@ -17,6 +17,9 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         "DARK".to_string(),
         "RSS3".to_string(),
         "REX".to_string(),
+        // "BTC".to_string(),
+        // "ETH".to_string(),
+        // "SOL".to_string(),
     ];
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(cfg.bybit.clone())),
@@ -32,26 +35,19 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
         exchange_gateway.add_exchange(exchange);
     }
 
-    let mut engine = Engine::new(market_data.clone(), exchange_gateway);
-
-    engine.start_order_book_processing(symbols.clone()).await?;
+    let mut engine = ArbitrageEngine::new(market_data, exchange_gateway);
+    let mut arbitrage_rx = engine.start_processing(symbols.clone(), cfg.min_profit_percentage, cfg.order_book_max_age_ms).await?;
 
     loop {
-        // println!("{:?}", engine.market_data);
-        for symbol in symbols.clone() {
-            let opportunities = engine
-                .find_arbitrage_opportunities(symbol.as_str(), cfg.min_profit_percentage, cfg.order_book_max_age_ms)
-                .await?;
-            opportunities.iter().take(10).for_each(|o| {
-                println!(
-                    "  ws: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
-                    o.symbol,
-                    o.estimated_profit_per_unit,
-                    o.net_profit_percentage,
-                    o.buy_exchange,
-                    o.sell_exchange
-                );
-            });
+        while let Ok(opportunity) = arbitrage_rx.try_recv() {
+            println!(
+                "  ws: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
+                opportunity.symbol,
+                opportunity.profit_per_unit,
+                opportunity.net_profit_percentage,
+                opportunity.buy_exchange,
+                opportunity.sell_exchange
+            );
         }
         sleep(Duration::from_secs(5)).await;
     }

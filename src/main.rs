@@ -19,7 +19,7 @@ async fn main() {
     let cfg: Config = Arc::new(Configuration::new());
 
     // Start arbitrage checker in background
-    tokio::spawn(start_arbitrage_checker_rest(cfg.clone()));
+    // tokio::spawn(start_arbitrage_checker_rest(cfg.clone()));
     tokio::spawn(start_arbitrage_checker_ws(cfg.clone()));
 
     tokio::signal::ctrl_c().await.unwrap();

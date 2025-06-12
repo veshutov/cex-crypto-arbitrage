@@ -68,14 +68,18 @@ impl MarketData {
         Some(quote_data)
     }
 
-    pub fn get_all_order_book_for_symbol(&self, symbol: &str) -> HashMap<ExchangeName, OrderBook> {
+    pub fn get_all_order_book_for_symbol(&self, symbol: &str) -> Vec<OrderBook> {
         let exchanges = self.exchange_books.keys();
-        let mut result = HashMap::with_capacity(exchanges.len());
+        let mut result = Vec::with_capacity(exchanges.len());
 
         for exchange in exchanges {
-            if let Some(quote_ptr) = self.exchange_books.get(exchange).and_then(|m| m.get(symbol)) {
+            if let Some(quote_ptr) = self
+                .exchange_books
+                .get(exchange)
+                .and_then(|m| m.get(symbol))
+            {
                 let quote_data = unsafe { &*quote_ptr.load(std::sync::atomic::Ordering::Acquire) };
-                result.insert(*exchange, quote_data.clone());
+                result.push(quote_data.clone());
             }
         }
 

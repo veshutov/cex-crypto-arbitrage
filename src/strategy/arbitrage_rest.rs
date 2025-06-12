@@ -117,7 +117,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                                 sell_price: sell_price1,
                                 gross_profit_percentage: gross_profit_percentage1,
                                 net_profit_percentage: net_profit_percentage1,
-                                estimated_profit_per_unit: net_profit1,
+                                profit_per_unit: net_profit1,
                                 max_volume: Decimal::ZERO,
                                 timestamp: current_time,
                             });
@@ -149,7 +149,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                                 sell_price: sell_price2,
                                 gross_profit_percentage: gross_profit_percentage2,
                                 net_profit_percentage: net_profit_percentage2,
-                                estimated_profit_per_unit: net_profit2,
+                                profit_per_unit: net_profit2,
                                 max_volume: Decimal::ZERO,
                                 timestamp: current_time,
                             });
@@ -174,7 +174,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
             println!(
                 "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
                 o.symbol,
-                o.estimated_profit_per_unit,
+                o.profit_per_unit,
                 o.net_profit_percentage,
                 o.buy_exchange,
                 o.sell_exchange
