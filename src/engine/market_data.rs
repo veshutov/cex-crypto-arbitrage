@@ -83,10 +83,9 @@ impl MarketData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateResult {
     Updated,
-    NewEntry,
     Duplicate,
     Outdated,
 }
