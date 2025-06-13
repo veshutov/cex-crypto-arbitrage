@@ -121,8 +121,7 @@ impl Exchange for GateExchange {
 
         exchange_wr
             .send(Message::Text(subscribe_msg.to_string().into()))
-            .await
-            .unwrap();
+            .await?;
 
         tokio::spawn(async move {
             loop {
