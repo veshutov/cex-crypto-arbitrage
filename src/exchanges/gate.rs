@@ -99,7 +99,7 @@ impl Exchange for GateExchange {
     }
 
     async fn subscribe_orderbook(
-        &mut self,
+        &self,
         config: SubscriptionConfig,
         sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError> {

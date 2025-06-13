@@ -23,7 +23,7 @@ pub trait Exchange: Send + Sync {
     fn config(&self) -> ExchangeConfig;
     async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError>;
     async fn subscribe_orderbook(
-        &mut self,
+        &self,
         config: SubscriptionConfig,
         sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError>;

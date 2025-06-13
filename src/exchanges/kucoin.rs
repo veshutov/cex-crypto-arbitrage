@@ -110,7 +110,7 @@ impl Exchange for KucoinExchange {
     }
 
     async fn subscribe_orderbook(
-        &mut self,
+        &self,
         config: SubscriptionConfig,
         sender: mpsc::UnboundedSender<OrderBook>,
     ) -> Result<(), ExchangeError> {
