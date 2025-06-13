@@ -337,11 +337,21 @@ impl Exchange for BybitExchange {
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .map(|item| {
+                let side =  item["side"].as_str().unwrap();
+                let side = if side == "Sell" {
+                    OrderSide::Sell
+                } else if side == "Buy" {
+                    OrderSide::Buy
+                } else {
+                    panic!("Unknown side")
+                };
                 Position {
                     symbol: item["symbol"].as_str().unwrap().to_string(),
                     size: item["size"].as_str().unwrap().parse::<i32>().unwrap(),
                     entry_price: item["avgPrice"].as_str().unwrap().parse::<Decimal>().unwrap(),
                     entry_time: item["createdTime"].as_str().unwrap().parse::<u64>().unwrap(),
+                    exchange_name: ExchangeName::Bybit,
+                    side,
                 }
             })
             .collect();

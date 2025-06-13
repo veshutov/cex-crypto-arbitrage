@@ -6,40 +6,30 @@ use crate::exchanges::{
 };
 
 pub struct ExchangeGateway {
-    pub order_book_receiver: Option<mpsc::UnboundedReceiver<OrderBook>>,
     pub exchanges: HashMap<ExchangeName, Box<dyn Exchange>>,
-    order_book_sender: mpsc::UnboundedSender<OrderBook>,
 }
 
 impl ExchangeGateway {
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::unbounded_channel();
+    pub fn new(exchanges: Vec<Box<dyn Exchange>>) -> Self {
         Self {
-            exchanges: HashMap::new(),
-            order_book_receiver: Some(receiver),
-            order_book_sender: sender,
+            exchanges: exchanges.into_iter().map(|e| (e.name(), e)).collect(),
         }
-    }
-
-    pub fn add_exchange(&mut self, exchange: Box<dyn Exchange>) {
-        let name = exchange.name();
-        self.exchanges.insert(name, exchange);
     }
 
     pub async fn subscribe_to_symbols(
-        &mut self,
+        &self,
         symbols: Vec<String>,
-    ) -> Result<(), ExchangeError> {
+    ) -> Result<mpsc::UnboundedReceiver<OrderBook>, ExchangeError> {
+        let (sender, receiver) = mpsc::unbounded_channel();
         let config = SubscriptionConfig {
             symbols: symbols.clone(),
         };
-
-        for adapter in self.exchanges.values_mut() {
-            let sender = self.order_book_sender.clone();
-            adapter.subscribe_orderbook(config.clone(), sender).await?;
+        
+        for exchange in self.exchanges.values() {
+            exchange.subscribe_orderbook(config.clone(), sender.clone()).await?;
         }
 
-        Ok(())
+        Ok(receiver)
     }
 
     pub async fn place_order(
@@ -58,14 +48,14 @@ impl ExchangeGateway {
         &self,
         order_id: &str,
         exchange_name: ExchangeName,
-        symbol: String,
+        symbol: &str,
         side: OrderSide,
     ) -> Result<OrderResponse, ExchangeError> {
         let exchange = self.exchanges.get(&exchange_name).ok_or_else(|| {
             ExchangeError::InvalidResponse(format!("Exchange {:?} not found", exchange_name))
         })?;
 
-        exchange.close_position(order_id, &symbol, side).await
+        exchange.close_position(order_id, symbol, side).await
     }
 
     pub async fn get_open_positions(&self, exchange_name: ExchangeName) -> Result<Vec<Position>, ExchangeError> {
@@ -74,11 +64,5 @@ impl ExchangeGateway {
         })?;
 
         exchange.get_open_positions().await
-    }
-}
-
-impl Default for ExchangeGateway {
-    fn default() -> Self {
-        Self::new()
     }
 }

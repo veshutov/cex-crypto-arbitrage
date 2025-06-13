@@ -2,8 +2,7 @@ use std::{collections::HashMap, sync::atomic::AtomicPtr, sync::Arc};
 
 use crate::exchanges::{ExchangeName, OrderBook};
 
-// Since we have a small number of exchanges, we can use a more efficient key structure
-type Symbol = String; // Just the symbol
+type Symbol = String;
 type OrderBookValue = AtomicPtr<OrderBook>;
 
 #[derive(Clone, Debug)]
@@ -61,8 +60,8 @@ impl MarketData {
         }
     }
 
-    pub fn get_order_book(&self, exchange: ExchangeName, symbol: &str) -> Option<&OrderBook> {
-        let symbol_map = self.exchange_books.get(&exchange)?;
+    pub fn get_order_book(&self, exchange: &ExchangeName, symbol: &str) -> Option<&OrderBook> {
+        let symbol_map = self.exchange_books.get(exchange)?;
         let quote_ptr = symbol_map.get(symbol)?;
         let quote_data = unsafe { &*quote_ptr.load(std::sync::atomic::Ordering::Acquire) };
         Some(quote_data)

@@ -326,11 +326,19 @@ impl Exchange for GateExchange {
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .map(|item| {
+                let qty = item["size"].as_i64().unwrap() as i32;
+                let side = if qty > 0 {
+                    OrderSide::Buy
+                } else {
+                    OrderSide::Sell
+                };
                 Position {
                     symbol: item["contract"].as_str().unwrap().to_string(),
-                    size: item["size"].as_i64().unwrap() as i32,
+                    size: qty.abs(),
                     entry_price: item["entry_price"].as_str().unwrap().parse::<Decimal>().unwrap(),
                     entry_time: item["open_time"].as_i64().unwrap() as u64 * 1000,
+                    exchange_name: ExchangeName::Gate,
+                    side,
                 }
             })
             .collect();

@@ -1,9 +1,14 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
+use rust_decimal::Decimal;
 use tokio::time::sleep;
 
 use crate::{
-    engine::{market_data::MarketData, ArbitrageEngine},
+    engine::{
+        market_data::MarketData,
+        order_manager::{self, OrderManager},
+        ArbitrageEngine, ArbitrageEngineConfig,
+    },
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
         Exchange, ExchangeName,
@@ -30,36 +35,23 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
     let market_data = MarketData::new(&exchange_names, &symbols);
-    let mut exchange_gateway = ExchangeGateway::new();
+    let exchange_gateway = Arc::new(ExchangeGateway::new(exchanges));
+    let order_manager = OrderManager::new(exchange_gateway.clone());
+    let engine_config = ArbitrageEngineConfig {
+        min_open_profit_percentage: cfg.min_open_profit_percentage,
+        max_close_profit_percentage: cfg.max_close_profit_percentage,
+        min_position_value: cfg.min_position_value,
+        max_position_value: cfg.max_position_value,
+    };
 
-    for exchange in exchanges {
-        exchange_gateway.add_exchange(exchange);
-    }
+    let mut engine = ArbitrageEngine::new(market_data, exchange_gateway.clone(), order_manager, engine_config);
 
-    let positions = exchange_gateway.get_open_positions(ExchangeName::Bybit).await;
-    println!("pos - {:?}", positions);
+    let r = exchange_gateway.get_open_positions(ExchangeName::Bybit).await;
+    println!("{:?}", r);
+    let r = exchange_gateway.get_open_positions(ExchangeName::Kucoin).await;
+    println!("{:?}", r);
+    let r = exchange_gateway.get_open_positions(ExchangeName::Gate).await;
+    println!("{:?}", r);
 
-    let positions = exchange_gateway.get_open_positions(ExchangeName::Kucoin).await;
-    println!("pos - {:?}", positions);
-
-    let positions = exchange_gateway.get_open_positions(ExchangeName::Gate).await;
-    println!("pos - {:?}", positions);
     Ok(())
-
-    // let mut engine = ArbitrageEngine::new(market_data, exchange_gateway);
-    // let mut arbitrage_rx = engine.start_processing(symbols.clone(), cfg.min_profit_percentage, cfg.order_book_max_age_ms).await?;
-
-    // loop {
-    //     while let Ok(opportunity) = arbitrage_rx.try_recv() {
-    //         println!(
-    //             "  ws: {} – {:.2}, volume: {:?}, buy: {:?}, sell: {:?}",
-    //             opportunity.symbol,
-    //             opportunity.net_profit_percentage,
-    //             opportunity.max_volume * (opportunity.buy_price + opportunity.sell_price),
-    //             opportunity.buy_exchange,
-    //             opportunity.sell_exchange
-    //         );
-    //     }
-    //     sleep(Duration::from_secs(5)).await;
-    // }
 }

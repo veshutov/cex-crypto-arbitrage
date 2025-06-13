@@ -361,11 +361,19 @@ impl Exchange for KucoinExchange {
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .map(|item| {
+                let qty = item["currentQty"].as_i64().unwrap() as i32;
+                let side = if qty > 0 {
+                    OrderSide::Buy
+                } else {
+                    OrderSide::Sell
+                };
                 Position {
                     symbol: item["symbol"].as_str().unwrap().to_string(),
-                    size: item["currentQty"].as_i64().unwrap() as i32,
+                    size: qty.abs(),
                     entry_price: Decimal::try_from(item["avgEntryPrice"].as_f64().unwrap()).unwrap(),
                     entry_time: item["openingTimestamp"].as_i64().unwrap() as u64,
+                    exchange_name: ExchangeName::Kucoin,
+                    side,
                 }
             })
             .collect();

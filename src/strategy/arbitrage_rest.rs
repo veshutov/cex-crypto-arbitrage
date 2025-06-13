@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use futures::future::join_all;
 use tokio::time::sleep;
 
-use crate::engine::ArbitrageOpportunity;
+use crate::engine::arbitrage::ArbitrageOpportunity;
 use crate::{
     exchanges::bybit::BybitExchange,
     exchanges::gate::GateExchange,
@@ -45,6 +45,19 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     let now: Instant = Instant::now();
     let ticker_results = join_all(ticker_futures).await;
     let elapsed = now.elapsed();
+    
+    // Print symbols for each exchange in a format suitable for whitelist
+    for (exchange, result) in exchanges.iter().zip(&ticker_results) {
+        if let Ok(tickers) = result {
+            println!("\nSymbols for {:?}:", exchange.name());
+            println!("[");
+            for ticker in tickers {
+                println!("    \"{}\",", ticker.symbol);
+            }
+            println!("]");
+        }
+    }
+    
     println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
@@ -108,7 +121,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                         let net_profit_percentage1 =
                             (net_profit1 / total_transaction_value1) * hundred;
 
-                        if net_profit_percentage1 >= cfg.min_profit_percentage {
+                        if net_profit_percentage1 >= cfg.min_open_profit_percentage {
                             opportunities.push(ArbitrageOpportunity {
                                 symbol: symbol.clone(),
                                 buy_exchange: *exchange1,
@@ -118,7 +131,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                                 gross_profit_percentage: gross_profit_percentage1,
                                 net_profit_percentage: net_profit_percentage1,
                                 profit_per_unit: net_profit1,
-                                max_volume: Decimal::ZERO,
+                                max_quantity: Decimal::ZERO,
                                 timestamp: current_time,
                             });
                         }
@@ -140,7 +153,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                         let net_profit_percentage2 =
                             (net_profit2 / total_transaction_value2) * hundred;
 
-                        if net_profit_percentage2 >= cfg.min_profit_percentage {
+                        if net_profit_percentage2 >= cfg.min_open_profit_percentage {
                             opportunities.push(ArbitrageOpportunity {
                                 symbol: symbol.clone(),
                                 buy_exchange: *exchange2,
@@ -150,7 +163,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
                                 gross_profit_percentage: gross_profit_percentage2,
                                 net_profit_percentage: net_profit_percentage2,
                                 profit_per_unit: net_profit2,
-                                max_volume: Decimal::ZERO,
+                                max_quantity: Decimal::ZERO,
                                 timestamp: current_time,
                             });
                         }
@@ -169,7 +182,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     opportunities
         .iter()
         // .filter(|o| !esymbols_to_skip.contains(&o.symbol.as_str()))
-        .take(10)
+        // .take(10)
         .for_each(|o| {
             println!(
                 "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",

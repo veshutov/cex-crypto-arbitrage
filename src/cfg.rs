@@ -9,7 +9,10 @@ pub struct Configuration {
     pub env: Environment,
     pub symbol_min_volume_24h: Decimal,
     pub order_book_max_age_ms: u64,
-    pub min_profit_percentage: Decimal,
+    pub min_open_profit_percentage: Decimal,
+    pub max_close_profit_percentage: Decimal,
+    pub min_position_value: Decimal,
+    pub max_position_value: Decimal,
     pub bybit: ExchangeConfig,
     pub kucoin: ExchangeConfig,
     pub bingx: ExchangeConfig,
@@ -41,9 +44,21 @@ impl Configuration {
             .parse::<u64>()
             .expect("Unable to parse the value of the ORDER_BOOK_MAX_AGE_MS environment variable. Please make sure it is a valid number.");
 
-        let min_profit_percentage = env_var("MIN_PROFIT_PERCENTAGE")
+        let min_open_profit_percentage = env_var("MIN_OPEN_PROFIT_PERCENTAGE")
             .parse::<Decimal>()
-            .expect("Unable to parse the value of the MIN_PROFIT_PERCENTAGE environment variable. Please make sure it is a valid decimal.");
+            .expect("Unable to parse the value of the MIN_OPEN_PROFIT_PERCENTAGE environment variable. Please make sure it is a valid decimal.");
+
+        let max_close_profit_percentage = env_var("MAX_CLOSE_PROFIT_PERCENTAGE")
+            .parse::<Decimal>()
+            .expect("Unable to parse the value of the MAX_CLOSE_PROFIT_PERCENTAGE environment variable. Please make sure it is a valid decimal.");
+
+        let min_position_value = env_var("MIN_POSITION_VALUE")
+            .parse::<Decimal>()
+            .expect("Unable to parse the value of the MIN_POSITION_VALUE environment variable. Please make sure it is a valid decimal.");
+
+        let max_position_value = env_var("MAX_POSITION_VALUE")
+            .parse::<Decimal>()
+            .expect("Unable to parse the value of the MAX_POSITION_VALUE environment variable. Please make sure it is a valid decimal.");
 
         let bybit = ExchangeConfig {
             api_key: env_var("BYBIT_API_KEY"),
@@ -145,7 +160,10 @@ impl Configuration {
             env,
             symbol_min_volume_24h,
             order_book_max_age_ms,
-            min_profit_percentage,
+            min_open_profit_percentage,
+            max_close_profit_percentage,
+            min_position_value,
+            max_position_value,
             bybit,
             kucoin,
             bingx,

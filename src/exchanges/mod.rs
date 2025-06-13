@@ -70,7 +70,7 @@ pub struct OrderBook {
     pub timestamp: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OrderSide {
     Buy,
     Sell,
@@ -96,6 +96,8 @@ pub struct Position {
     pub size: i32,
     pub entry_price: Decimal,
     pub entry_time: u64,
+    pub side: OrderSide,
+    pub exchange_name: ExchangeName,
 }
 
 impl OrderBook {
