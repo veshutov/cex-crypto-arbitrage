@@ -22,6 +22,7 @@ pub mod order_manager;
 
 #[derive(Debug, Clone)]
 pub struct ArbitrageEngineConfig {
+    pub order_book_max_age_ms: u64,
     pub min_open_profit_percentage: Decimal,
     pub max_close_profit_percentage: Decimal,
     pub min_position_value: Decimal,
@@ -53,7 +54,6 @@ impl ArbitrageEngine {
     pub async fn start_processing(
         &mut self,
         symbols: Vec<String>,
-        order_book_max_age_ms: u64,
     ) -> Result<()> {
         self.order_manager.load_positions().await?;
 
@@ -99,7 +99,7 @@ impl ArbitrageEngine {
                             &exchange_configs,
                             buy_order_book,
                             sell_order_book,
-                            order_book_max_age_ms,
+                            config.order_book_max_age_ms,
                         )
                         .await
                         {
@@ -129,7 +129,7 @@ impl ArbitrageEngine {
                             &market_data,
                             &exchange_configs,
                             &symbol,
-                            order_book_max_age_ms,
+                            config.order_book_max_age_ms,
                         )
                         .await
                         {

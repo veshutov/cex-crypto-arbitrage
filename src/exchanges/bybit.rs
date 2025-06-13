@@ -45,6 +45,10 @@ impl BybitExchange {
     fn map_symbol(&self, symbol: &str) -> String {
         format!("{}USDT", symbol)
     }
+
+    fn map_from_exchange_symbol(&self, symbol: &str) -> String {
+        symbol.strip_suffix("USDT").unwrap().to_string()
+    }
 }
 
 #[async_trait]
@@ -112,8 +116,9 @@ impl Exchange for BybitExchange {
         let symbols = config
             .symbols
             .iter()
-            .map(|symbol| format!("orderbook.1.{}", self.map_symbol(symbol)))
+            .map(|symbol| self.map_symbol(symbol))
             .filter(|s| whitelist.contains(s))
+            .map(|symbol| format!("orderbook.1.{}", symbol))
             .collect::<Vec<String>>();
         if symbols.is_empty() {
             return Ok(());
@@ -355,8 +360,9 @@ impl Exchange for BybitExchange {
                 } else {
                     panic!("Unknown side")
                 };
+                let symbol = item["symbol"].as_str().unwrap();
                 Position {
-                    symbol: item["symbol"].as_str().unwrap().to_string(),
+                    symbol: self.map_from_exchange_symbol(symbol),
                     size: item["size"].as_str().unwrap().parse::<i32>().unwrap(),
                     entry_price: item["avgPrice"]
                         .as_str()

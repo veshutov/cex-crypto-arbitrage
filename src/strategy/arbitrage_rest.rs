@@ -46,18 +46,6 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     let ticker_results = join_all(ticker_futures).await;
     let elapsed = now.elapsed();
     
-    // Print symbols for each exchange in a format suitable for whitelist
-    for (exchange, result) in exchanges.iter().zip(&ticker_results) {
-        if let Ok(tickers) = result {
-            println!("\nSymbols for {:?}:", exchange.name());
-            println!("[");
-            for ticker in tickers {
-                println!("    \"{}\",", ticker.symbol);
-            }
-            println!("]");
-        }
-    }
-    
     println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {

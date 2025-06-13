@@ -18,14 +18,8 @@ use crate::{
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     let symbols = vec![
-        "ANIME".to_string(),
+        "XEM".to_string(),
         "SCA".to_string(),
-        "DARK".to_string(),
-        "RSS3".to_string(),
-        "REX".to_string(),
-        // "BTC".to_string(),
-        // "ETH".to_string(),
-        // "SOL".to_string(),
     ];
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         Box::new(BybitExchange::new(cfg.bybit.clone())),
@@ -38,20 +32,28 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<()> {
     let exchange_gateway = Arc::new(ExchangeGateway::new(exchanges));
     let order_manager = OrderManager::new(exchange_gateway.clone());
     let engine_config = ArbitrageEngineConfig {
+        order_book_max_age_ms: cfg.order_book_max_age_ms,
         min_open_profit_percentage: cfg.min_open_profit_percentage,
         max_close_profit_percentage: cfg.max_close_profit_percentage,
         min_position_value: cfg.min_position_value,
         max_position_value: cfg.max_position_value,
     };
 
-    let mut engine = ArbitrageEngine::new(market_data, exchange_gateway.clone(), order_manager, engine_config);
+    let mut engine = ArbitrageEngine::new(market_data, exchange_gateway.clone(), order_manager.clone(), engine_config);
+    match engine.start_processing(symbols).await {
+        Ok(_) => {
+            println!("Engine started");
+        },
+        Err(e) => {
+            println!("Engine error: {}", e)
+        },
+    };
 
-    let r = exchange_gateway.get_open_positions(ExchangeName::Bybit).await;
-    println!("{:?}", r);
-    let r = exchange_gateway.get_open_positions(ExchangeName::Kucoin).await;
-    println!("{:?}", r);
-    let r = exchange_gateway.get_open_positions(ExchangeName::Gate).await;
-    println!("{:?}", r);
 
+    
+    loop {
+        println!("{:?}", order_manager.get_open_positions());
+        sleep(Duration::from_secs(3)).await;
+    }
     Ok(())
 }

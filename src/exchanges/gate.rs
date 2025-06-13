@@ -51,6 +51,10 @@ impl GateExchange {
     fn map_symbol(&self, symbol: &str) -> String {
         format!("{}_USDT", symbol)
     }
+
+    fn map_from_exchange_symbol(&self, symbol: &str) -> String {
+        symbol.strip_suffix("_USDT").unwrap().to_string()
+    }
 }
 
 #[async_trait]
@@ -343,8 +347,9 @@ impl Exchange for GateExchange {
                 } else {
                     OrderSide::Sell
                 };
+                let symbol = item["contract"].as_str().unwrap();
                 Position {
-                    symbol: item["contract"].as_str().unwrap().to_string(),
+                    symbol: self.map_from_exchange_symbol(symbol),
                     size: qty.abs(),
                     entry_price: item["entry_price"]
                         .as_str()

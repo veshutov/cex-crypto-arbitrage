@@ -54,8 +54,12 @@ impl KucoinExchange {
         BASE64.encode(mac.finalize().into_bytes())
     }
 
-    fn map_symbol(&self, symbol: &str) -> String {
+    fn map_to_exchange_symbol(&self, symbol: &str) -> String {
         format!("{}USDTM", symbol)
+    }
+
+    fn map_from_exchange_symbol(&self, symbol: &str) -> String {
+        symbol.strip_suffix("USDTM").unwrap().to_string()
     }
 }
 
@@ -133,7 +137,7 @@ impl Exchange for KucoinExchange {
         let symbols = config
             .symbols
             .iter()
-            .map(|symbol| self.map_symbol(symbol))
+            .map(|symbol| self.map_to_exchange_symbol(symbol))
             .filter(|s| symbol_whitelist.contains(s))
             .collect::<Vec<String>>();
         if symbols.is_empty() {
@@ -156,7 +160,7 @@ impl Exchange for KucoinExchange {
         tokio::spawn(async move {
             loop {
                 // Ping
-                if let Ok(ping) = ping_rc.try_recv() {
+                if let Some(ping) = ping_rc.recv().await {
                     exchange_wr
                         .send(Message::Text(ping.into()))
                         .await
@@ -239,7 +243,7 @@ impl Exchange for KucoinExchange {
 
         let params = serde_json::json!({
             "clientOid": order.id,
-            "symbol": self.map_symbol(&order.symbol),
+            "symbol": self.map_to_exchange_symbol(&order.symbol),
             "side": side,
             "type": "market",
             "size": order.quantity,
@@ -293,7 +297,7 @@ impl Exchange for KucoinExchange {
 
         let params = serde_json::json!({
             "clientOid": order_id,
-            "symbol": self.map_symbol(symbol),
+            "symbol": self.map_to_exchange_symbol(symbol),
             "type": "market",
             "closeOrder": true,
             "reduceOnly": true,
@@ -377,8 +381,9 @@ impl Exchange for KucoinExchange {
                 } else {
                     OrderSide::Sell
                 };
+                let symbol = item["symbol"].as_str().unwrap();
                 Position {
-                    symbol: item["symbol"].as_str().unwrap().to_string(),
+                    symbol: self.map_from_exchange_symbol(symbol),
                     size: qty.abs(),
                     entry_price: Decimal::try_from(item["avgEntryPrice"].as_f64().unwrap())
                         .unwrap(),
