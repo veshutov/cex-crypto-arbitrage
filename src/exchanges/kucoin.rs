@@ -274,6 +274,7 @@ impl Exchange for KucoinExchange {
         let data: Value = response.json().await?;
 
         if data["code"].as_str().unwrap_or("") != "200000" {
+            println!("Eror response from kucoin {}", data);
             return Err(ExchangeError::InvalidResponse(format!(
                 "API error: {}",
                 data["msg"].as_str().unwrap_or("Unknown error")

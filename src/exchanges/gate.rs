@@ -48,7 +48,7 @@ impl GateExchange {
         hex::encode(mac.finalize().into_bytes())
     }
 
-    fn map_symbol(&self, symbol: &str) -> String {
+    fn map_to_exchange_symbol(&self, symbol: &str) -> String {
         format!("{}_USDT", symbol)
     }
 
@@ -122,7 +122,7 @@ impl Exchange for GateExchange {
         let symbols = config
             .symbols
             .iter()
-            .map(|symbol| self.map_symbol(symbol))
+            .map(|symbol| self.map_to_exchange_symbol(symbol))
             .filter(|s| symbol_whitelist.contains(s))
             .collect::<Vec<String>>();
         if symbols.is_empty() {
@@ -207,7 +207,7 @@ impl Exchange for GateExchange {
 
         let params = serde_json::json!({
             "text": format!("t-{}", order.id),
-            "contract": self.map_symbol(&order.symbol),
+            "contract": self.map_to_exchange_symbol(&order.symbol),
             "size": size,
             "price": "0",
             "tif": "ioc",
@@ -233,9 +233,12 @@ impl Exchange for GateExchange {
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let data: Value = response.json().await?;
+            println!("Eror response from gate {} {}", status, data);
             return Err(ExchangeError::InvalidResponse(format!(
-                "Failed to place order: {}",
-                response.status()
+                "Failed to place order on gate: {}",
+                status
             )));
         }
 
@@ -262,7 +265,7 @@ impl Exchange for GateExchange {
 
         let params = serde_json::json!({
             "text": format!("t-{}", order_id),
-            "contract": self.map_symbol(symbol),
+            "contract": self.map_to_exchange_symbol(symbol),
             "price": "0",
             "size": 0,
             "tif": "ioc",

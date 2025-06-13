@@ -42,7 +42,7 @@ impl BybitExchange {
         hex::encode(mac.finalize().into_bytes())
     }
 
-    fn map_symbol(&self, symbol: &str) -> String {
+    fn map_to_exchange_symbol(&self, symbol: &str) -> String {
         format!("{}USDT", symbol)
     }
 
@@ -68,6 +68,7 @@ impl Exchange for BybitExchange {
 
         // Check if the response is successful
         if data["retCode"].as_i64().unwrap_or(1) != 0 {
+            println!("Eror response from bybit {}", data);
             return Err(ExchangeError::InvalidResponse(format!(
                 "API error: {}",
                 data["retMsg"].as_str().unwrap_or("Unknown error")
@@ -116,7 +117,7 @@ impl Exchange for BybitExchange {
         let symbols = config
             .symbols
             .iter()
-            .map(|symbol| self.map_symbol(symbol))
+            .map(|symbol| self.map_to_exchange_symbol(symbol))
             .filter(|s| whitelist.contains(s))
             .map(|symbol| format!("orderbook.1.{}", symbol))
             .collect::<Vec<String>>();
@@ -223,7 +224,7 @@ impl Exchange for BybitExchange {
         let params = serde_json::json!({
             "orderLinkId": order.id,
             "category": "linear",
-            "symbol": self.map_symbol(&order.symbol),
+            "symbol": self.map_to_exchange_symbol(&order.symbol),
             "side": side,
             "orderType": "Market",
             "qty": order.quantity.to_string(),
@@ -250,6 +251,7 @@ impl Exchange for BybitExchange {
         let data: Value = response.json().await?;
 
         if data["retCode"].as_i64().unwrap_or(1) != 0 {
+            println!("Eror response from bybit {}", data);
             return Err(ExchangeError::InvalidResponse(format!(
                 "API error: {}",
                 data["retMsg"].as_str().unwrap_or("Unknown error")
@@ -278,7 +280,7 @@ impl Exchange for BybitExchange {
         let params = serde_json::json!({
             "orderLinkId": order_id,
             "category": "linear",
-            "symbol": self.map_symbol(symbol),
+            "symbol": self.map_to_exchange_symbol(symbol),
             "side": order_side,
             "orderType": "Market",
             "qty": "0",
