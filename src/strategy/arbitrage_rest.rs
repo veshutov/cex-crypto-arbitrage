@@ -175,10 +175,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         .for_each(|o| {
             println!(
                 "rest: {} – {:.2}, buy: {:?}, sell: {:?}",
-                o.symbol,
-                o.net_profit_percentage,
-                o.buy_exchange,
-                o.sell_exchange
+                o.symbol, o.net_profit_percentage, o.buy_exchange, o.sell_exchange
             );
         });
 

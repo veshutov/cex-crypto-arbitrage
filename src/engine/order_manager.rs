@@ -5,9 +5,7 @@ use ulid::Ulid;
 
 use crate::{
     engine::ArbitrageOpportunity,
-    exchanges::{
-        gateway::ExchangeGateway, ExchangeName, OrderRequest, OrderSide, Position,
-    },
+    exchanges::{gateway::ExchangeGateway, ExchangeName, OrderRequest, OrderSide, Position},
 };
 
 #[derive(Error, Debug)]
@@ -30,9 +28,7 @@ pub struct OrderManager {
 }
 
 impl OrderManager {
-    pub fn new(
-        exchange_gateway: Arc<ExchangeGateway>,
-    ) -> Self {
+    pub fn new(exchange_gateway: Arc<ExchangeGateway>) -> Self {
         Self {
             exchange_gateway,
             open_positions: Arc::new(DashMap::new()),
@@ -96,15 +92,17 @@ impl OrderManager {
         };
 
         let (buy_result, sell_result) = tokio::join!(
-            self.exchange_gateway.place_order(opportunity.buy_exchange, buy_order),
-            self.exchange_gateway.place_order(opportunity.sell_exchange, sell_order)
+            self.exchange_gateway
+                .place_order(opportunity.buy_exchange, buy_order),
+            self.exchange_gateway
+                .place_order(opportunity.sell_exchange, sell_order)
         );
 
         match (buy_result, sell_result) {
             (Ok(_), Ok(_)) => {
                 self.record_position(opportunity, quantity);
                 Ok(())
-            },
+            }
             (Err(e), _) | (_, Err(e)) => Err(OrderManagerError::OrderPlacementError {
                 message: e.to_string(),
             }),
@@ -137,24 +135,20 @@ impl OrderManager {
             (Ok(_), Ok(_)) => {
                 self.open_positions.remove(&opportunity.symbol);
                 Ok(())
-            },
+            }
             (Err(e), _) | (_, Err(e)) => Err(OrderManagerError::PositionCloseError {
                 message: e.to_string(),
             }),
         }
     }
 
-    fn record_position(
-        &self,
-        opportunity: &ArbitrageOpportunity,
-        quantity: i32,
-    ) {
+    fn record_position(&self, opportunity: &ArbitrageOpportunity, quantity: i32) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
 
-            self.open_positions.insert(
+        self.open_positions.insert(
             opportunity.symbol.clone(),
             HashMap::from([
                 (

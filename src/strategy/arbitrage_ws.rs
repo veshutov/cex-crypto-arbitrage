@@ -4,9 +4,8 @@ use tokio::task::JoinHandle;
 
 use crate::{
     engine::{
-        market_data::MarketData,
-        order_manager::OrderManager,
-        ArbitrageEngine, ArbitrageEngineConfig,
+        market_data::MarketData, order_manager::OrderManager, ArbitrageEngine,
+        ArbitrageEngineConfig,
     },
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
@@ -45,6 +44,11 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
         max_position_value: cfg.max_position_value,
     };
 
-    let mut engine = ArbitrageEngine::new(market_data.clone(), exchange_gateway.clone(), order_manager.clone(), engine_config);
+    let mut engine = ArbitrageEngine::new(
+        market_data.clone(),
+        exchange_gateway.clone(),
+        order_manager.clone(),
+        engine_config,
+    );
     engine.start_processing(symbols.clone()).await
 }

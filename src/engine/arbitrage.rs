@@ -97,7 +97,9 @@ pub fn calculate_arbitrage(
     sell_order_book: &OrderBook,
 ) -> ArbitrageOpportunity {
     let buy_config = exchange_configs.get(&buy_order_book.exchange_name).unwrap();
-    let sell_config = exchange_configs.get(&sell_order_book.exchange_name).unwrap();
+    let sell_config = exchange_configs
+        .get(&sell_order_book.exchange_name)
+        .unwrap();
 
     let buy_price = buy_order_book.best_ask_price;
     let sell_price = sell_order_book.best_bid_price;

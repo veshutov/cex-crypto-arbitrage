@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use crate::strategy::{arbitrage_ws::start_arbitrage_checker_ws, arbitrage_rest::start_arbitrage_checker_rest};
+use crate::strategy::{
+    arbitrage_rest::start_arbitrage_checker_rest, arbitrage_ws::start_arbitrage_checker_ws,
+};
 
 pub mod cfg;
+pub mod engine;
+pub mod error;
 pub mod exchanges;
 pub mod strategy;
-pub mod error;
-pub mod engine;
 
 pub use cfg::*;
 pub use error::*;
@@ -26,14 +28,14 @@ async fn main() {
             match join_handle.await {
                 Ok(_) => {
                     println!("Exiting main join");
-                },
+                }
                 Err(e) => {
                     println!("Error main join {}", e);
-                },
+                }
             };
-        },
+        }
         Err(e) => {
             println!("Error starting engine {}", e);
-        },
+        }
     };
 }

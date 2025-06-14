@@ -1,6 +1,6 @@
+use crate::exchanges::ExchangeConfig;
 use rust_decimal::Decimal;
 use std::{str::FromStr, sync::Arc};
-use crate::exchanges::ExchangeConfig;
 
 pub type Config = Arc<Configuration>;
 
