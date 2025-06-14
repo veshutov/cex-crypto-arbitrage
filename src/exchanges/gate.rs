@@ -333,9 +333,11 @@ impl Exchange for GateExchange {
             .await?;
 
         if !response.status().is_success() {
+            let data: Value = response.json().await?;
+            println!("Eror response from gate {}", data);
             return Err(ExchangeError::InvalidResponse(format!(
                 "Failed to get positions: {}",
-                response.status()
+                data["message"].as_str().unwrap_or("Unknown error")
             )));
         }
 

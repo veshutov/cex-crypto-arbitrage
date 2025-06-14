@@ -7,6 +7,10 @@ pub mod error;
 pub mod gate;
 pub mod gateway;
 pub mod kucoin;
+pub mod bitget;
+pub mod mexc;
+pub mod htx;
+pub mod bing;
 
 pub use error::*;
 
@@ -15,6 +19,10 @@ pub enum ExchangeName {
     Bybit,
     Kucoin,
     Gate,
+    Bitget,
+    Mexc,
+    Htx,
+    Bing,
 }
 
 #[async_trait]

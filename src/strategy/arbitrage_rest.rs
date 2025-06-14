@@ -10,6 +10,10 @@ use crate::{
     exchanges::bybit::BybitExchange,
     exchanges::gate::GateExchange,
     exchanges::kucoin::KucoinExchange,
+    exchanges::bitget::Bitget,
+    exchanges::mexc::Mexc,
+    exchanges::htx::Htx,
+    exchanges::bing::Bing,
     exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
     Config, Result,
 };
@@ -30,6 +34,10 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
+        Box::new(Bitget::new(cfg.bitget.clone())),
+        Box::new(Mexc::new(cfg.mexc.clone())),
+        Box::new(Htx::new(cfg.htx.clone())),
+        Box::new(Bing::new(cfg.bingx.clone())),
     ];
     let symbols_to_skip = HashSet::from(["NEIRO"]);
     // let symbols = ["XEM", "AIOT"];
@@ -45,10 +53,23 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
 
     // let now: Instant = Instant::now();
     let ticker_results = join_all(ticker_futures).await;
+    for res in ticker_results.iter() {
+        match res {
+            Ok(tickers) => {
+                println!("tickers size {:?}", tickers.len());
+            },
+            Err(e) => {
+                println!("tickers error {:?}", e);
+            },
+        }
+    }
     // let elapsed = now.elapsed();
     // println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
+        if result.is_err() {
+            continue;
+        }
         let tickers = result?;
         for ticker in tickers {
             if ticker.volume_24h < cfg.symbol_min_volume_24h {
@@ -189,6 +210,10 @@ fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {
         ExchangeName::Bybit => convert_bybit_symbol(symbol),
         ExchangeName::Kucoin => convert_kucoin_symbol(symbol),
         ExchangeName::Gate => convert_gate_symbol(symbol),
+        ExchangeName::Bitget => symbol.strip_suffix("USDT").unwrap_or(&symbol).to_string(),
+        ExchangeName::Mexc => symbol.strip_suffix("_USDT").unwrap_or(&symbol).to_string(),
+        ExchangeName::Htx => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
+        ExchangeName::Bing => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
     }
 }
 
