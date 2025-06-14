@@ -100,11 +100,40 @@ impl OrderManager {
 
         match (buy_result, sell_result) {
             (Ok(_), Ok(_)) => {
+                println!("Orders plased successfully {}", opportunity.symbol);
                 self.record_position(opportunity, quantity);
                 Ok(())
             }
-            (Err(e), _) | (_, Err(e)) => Err(OrderManagerError::OrderPlacementError {
-                message: e.to_string(),
+            (Ok(_), Err(e)) => {
+                println!("Buy order succeeded but sell failed, close the buy position {}", opportunity.symbol);
+                if let Err(close_err) = self.exchange_gateway
+                    .close_position(&Ulid::new().to_string(), opportunity.buy_exchange, &opportunity.symbol, OrderSide::Sell)
+                    .await
+                {
+                    return Err(OrderManagerError::OrderPlacementError {
+                        message: format!("Failed to place sell order: {}. Also failed to close buy order: {}", e, close_err),
+                    });
+                }
+                Err(OrderManagerError::OrderPlacementError {
+                    message: format!("Failed to place sell order: {}", e),
+                })
+            }
+            (Err(e), Ok(_)) => {
+                println!("Sell order succeeded but buy failed, close the sell position {}", opportunity.symbol);
+                if let Err(close_err) = self.exchange_gateway
+                    .close_position(&Ulid::new().to_string(), opportunity.sell_exchange, &opportunity.symbol, OrderSide::Buy)
+                    .await
+                {
+                    return Err(OrderManagerError::OrderPlacementError {
+                        message: format!("Failed to place buy order: {}. Also failed to close sell order: {}", e, close_err),
+                    });
+                }
+                Err(OrderManagerError::OrderPlacementError {
+                    message: format!("Failed to place buy order: {}", e),
+                })
+            }
+            (Err(e1), Err(e2)) => Err(OrderManagerError::OrderPlacementError {
+                message: format!("Both orders failed. Buy error: {}, Sell error: {}", e1, e2),
             }),
         }
     }
@@ -133,6 +162,7 @@ impl OrderManager {
 
         match (buy_result, sell_result) {
             (Ok(_), Ok(_)) => {
+                println!("Orders closed successfully {}", opportunity.symbol);
                 self.open_positions.remove(&opportunity.symbol);
                 Ok(())
             }
