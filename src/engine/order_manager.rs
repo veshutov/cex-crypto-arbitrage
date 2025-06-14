@@ -105,13 +105,25 @@ impl OrderManager {
                 Ok(())
             }
             (Ok(_), Err(e)) => {
-                println!("Buy order succeeded but sell failed, close the buy position {}", opportunity.symbol);
-                if let Err(close_err) = self.exchange_gateway
-                    .close_position(&Ulid::new().to_string(), opportunity.buy_exchange, &opportunity.symbol, OrderSide::Sell)
+                println!(
+                    "Buy order succeeded but sell failed, close the buy position {}",
+                    opportunity.symbol
+                );
+                if let Err(close_err) = self
+                    .exchange_gateway
+                    .close_position(
+                        &Ulid::new().to_string(),
+                        opportunity.buy_exchange,
+                        &opportunity.symbol,
+                        OrderSide::Sell,
+                    )
                     .await
                 {
                     return Err(OrderManagerError::OrderPlacementError {
-                        message: format!("Failed to place sell order: {}. Also failed to close buy order: {}", e, close_err),
+                        message: format!(
+                            "Failed to place sell order: {}. Also failed to close buy order: {}",
+                            e, close_err
+                        ),
                     });
                 }
                 Err(OrderManagerError::OrderPlacementError {
@@ -119,13 +131,25 @@ impl OrderManager {
                 })
             }
             (Err(e), Ok(_)) => {
-                println!("Sell order succeeded but buy failed, close the sell position {}", opportunity.symbol);
-                if let Err(close_err) = self.exchange_gateway
-                    .close_position(&Ulid::new().to_string(), opportunity.sell_exchange, &opportunity.symbol, OrderSide::Buy)
+                println!(
+                    "Sell order succeeded but buy failed, close the sell position {}",
+                    opportunity.symbol
+                );
+                if let Err(close_err) = self
+                    .exchange_gateway
+                    .close_position(
+                        &Ulid::new().to_string(),
+                        opportunity.sell_exchange,
+                        &opportunity.symbol,
+                        OrderSide::Buy,
+                    )
                     .await
                 {
                     return Err(OrderManagerError::OrderPlacementError {
-                        message: format!("Failed to place buy order: {}. Also failed to close sell order: {}", e, close_err),
+                        message: format!(
+                            "Failed to place buy order: {}. Also failed to close sell order: {}",
+                            e, close_err
+                        ),
                     });
                 }
                 Err(OrderManagerError::OrderPlacementError {
