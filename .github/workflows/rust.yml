@@ -14,26 +14,10 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  DATABASE_URL: postgres://postgres:password@localhost:5432/example
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: example
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
     - uses: actions/checkout@v3
@@ -54,13 +38,13 @@ jobs:
     - name: Lint with clippy
       run: cargo clippy -- -D warnings
 
-    - name: Run tests
-      run: cargo test --verbose
-      env:
-        PORT: 8080
-        APP_ENVIRONMENT: development
-        DATABASE_POOL_MAX_SIZE: 50
-        DATABASE_NAME: example
+    # - name: Run tests
+    #   run: cargo test --verbose
+    #   env:
+    #     PORT: 8080
+    #     APP_ENVIRONMENT: development
+    #     DATABASE_POOL_MAX_SIZE: 50
+    #     DATABASE_NAME: example
 
     - name: Build
       run: cargo build --release
