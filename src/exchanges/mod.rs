@@ -10,7 +10,7 @@ pub mod kucoin;
 pub mod bitget;
 pub mod mexc;
 pub mod htx;
-pub mod bing;
+pub mod bingx;
 
 pub use error::*;
 
@@ -22,7 +22,7 @@ pub enum ExchangeName {
     Bitget,
     Mexc,
     Htx,
-    Bing,
+    Bingx,
 }
 
 #[async_trait]

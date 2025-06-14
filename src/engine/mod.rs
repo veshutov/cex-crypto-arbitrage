@@ -113,9 +113,7 @@ impl ArbitrageEngine {
                                     opportunity: opportunity.clone(),
                                     action: ArbitrageOpportunityAction::Close,
                                 }) {
-                                    Ok(_) => {
-                                        println!("Close event sent {:?}", opportunity.symbol)
-                                    }
+                                    Ok(_) => {}
                                     Err(e) => {
                                         println!("Exiting engine order book worker {:?}", e);
                                         order_book_receiver.close();

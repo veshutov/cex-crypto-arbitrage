@@ -18,7 +18,7 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
     let symbols = vec![
         "XEM".to_string(),
         "SCA".to_string(),
-        "LISTA".to_string(),
+        "ANIME".to_string(),
         "OMG".to_string(),
         "ORBS".to_string(),
         "ULTI".to_string(),

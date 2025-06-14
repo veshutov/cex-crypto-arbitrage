@@ -13,7 +13,7 @@ use crate::{
     exchanges::bitget::Bitget,
     exchanges::mexc::Mexc,
     exchanges::htx::Htx,
-    exchanges::bing::Bing,
+    exchanges::bingx::Bingx,
     exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
     Config, Result,
 };
@@ -37,7 +37,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(Bitget::new(cfg.bitget.clone())),
         Box::new(Mexc::new(cfg.mexc.clone())),
         Box::new(Htx::new(cfg.htx.clone())),
-        Box::new(Bing::new(cfg.bingx.clone())),
+        Box::new(Bingx::new(cfg.bingx.clone())),
     ];
     let symbols_to_skip = HashSet::from(["NEIRO"]);
     // let symbols = ["XEM", "AIOT"];
@@ -213,7 +213,7 @@ fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {
         ExchangeName::Bitget => symbol.strip_suffix("USDT").unwrap_or(&symbol).to_string(),
         ExchangeName::Mexc => symbol.strip_suffix("_USDT").unwrap_or(&symbol).to_string(),
         ExchangeName::Htx => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
-        ExchangeName::Bing => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
+        ExchangeName::Bingx => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
     }
 }
 

@@ -9,12 +9,12 @@ use crate::exchanges::{
     Position, SubscriptionConfig, TickerData,
 };
 
-pub struct Bing {
+pub struct Bingx {
     config: ExchangeConfig,
     client: Client,
 }
 
-impl Bing {
+impl Bingx {
     pub fn new(config: ExchangeConfig) -> Self {
         Self { 
             config,
@@ -24,9 +24,9 @@ impl Bing {
 }
 
 #[async_trait]
-impl Exchange for Bing {
+impl Exchange for Bingx {
     fn name(&self) -> ExchangeName {
-        ExchangeName::Bing
+        ExchangeName::Bingx
     }
 
     fn config(&self) -> ExchangeConfig {
