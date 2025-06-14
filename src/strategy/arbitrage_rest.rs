@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures::future::join_all;
 use tokio::time::sleep;
@@ -16,9 +16,9 @@ use crate::{
 
 pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
     loop {
-        let now: Instant = Instant::now();
+        // let now: Instant = Instant::now();
         let _opportunities = check_arbitrage_opportunities(&cfg).await?;
-        let elapsed = now.elapsed();
+        // let elapsed = now.elapsed();
         // println!("Check duration: {:.2?}", elapsed);
         sleep(Duration::from_secs(5)).await;
     }
@@ -31,8 +31,8 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
-    let symbols_to_skip = ["NEIRO", "ANIME", "SCA", "AXL"];
-    let symbols = ["XEM", "AIOT"];
+    // let symbols_to_skip = ["NEIRO", "ANIME", "SCA", "AXL"];
+    // let symbols = ["XEM", "AIOT"];
 
     // Get all tickers with prices from both exchanges
     let mut all_tickers_map: HashMap<String, Vec<(ExchangeName, TickerData, ExchangeConfig)>> =
@@ -43,10 +43,9 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         .map(|exchange| async { exchange.get_futures_tickers().await })
         .collect();
 
-    let now: Instant = Instant::now();
+    // let now: Instant = Instant::now();
     let ticker_results = join_all(ticker_futures).await;
-    let elapsed = now.elapsed();
-    
+    // let elapsed = now.elapsed();
     // println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {

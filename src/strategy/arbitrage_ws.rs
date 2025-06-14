@@ -1,18 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use rust_decimal::Decimal;
-use tokio::{task::JoinHandle, time::sleep};
-use ulid::Ulid;
+use tokio::task::JoinHandle;
 
 use crate::{
     engine::{
         market_data::MarketData,
-        order_manager::{self, OrderManager},
+        order_manager::OrderManager,
         ArbitrageEngine, ArbitrageEngineConfig,
     },
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
-        Exchange, ExchangeName, OrderRequest,
+        Exchange, ExchangeName,
     },
     Config, Result,
 };
