@@ -180,11 +180,11 @@ impl Exchange for GateExchange {
                             }
                         }
                         Err(e) => {
-                            println!("Error while recieving data from gate {:?}", e);
+                            println!("Error while receiving data from gate {:?}", e);
                             break;
                         }
                         _ => {
-                            println!("Error while recieving data from gate");
+                            println!("Error while receiving data from gate");
                             break;
                         }
                     }

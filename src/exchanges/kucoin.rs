@@ -215,12 +215,12 @@ impl Exchange for KucoinExchange {
                             }
                         }
                         Err(e) => {
-                            println!("Error while recieving data from kucoin {:?}", e);
+                            println!("Error while receiving data from kucoin {:?}", e);
                             ping_rc.close();
                             break;
                         }
                         _ => {
-                            println!("Error while recieving data from kucoin");
+                            println!("Error while receiving data from kucoin");
                             ping_rc.close();
                             break;
                         }
