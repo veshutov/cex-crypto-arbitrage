@@ -20,8 +20,20 @@ async fn main() {
 
     // Start arbitrage checker in background
     tokio::spawn(start_arbitrage_checker_rest(cfg.clone()));
-    tokio::spawn(start_arbitrage_checker_ws(cfg.clone()));
-
-    tokio::signal::ctrl_c().await.unwrap();
-    println!("Shutting down...");
+    let start_result = start_arbitrage_checker_ws(cfg.clone()).await;
+    match start_result {
+        Ok(join_handle) => {
+            match join_handle.await {
+                Ok(_) => {
+                    println!("Exiting main join");
+                },
+                Err(e) => {
+                    println!("Error main join {}", e);
+                },
+            };
+        },
+        Err(e) => {
+            println!("Error starting engine {}", e);
+        },
+    };
 }

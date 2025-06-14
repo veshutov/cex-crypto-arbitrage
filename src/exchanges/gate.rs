@@ -140,7 +140,7 @@ impl Exchange for GateExchange {
             .await?;
 
         tokio::spawn(async move {
-            loop {
+            'worker: loop {
                 if let Some(msg) = exchange_rc.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
@@ -188,6 +188,9 @@ impl Exchange for GateExchange {
                             break;
                         }
                     }
+                } else {
+                    println!("Exiting gate worker");
+                    break 'worker;
                 }
             }
         });
@@ -213,7 +216,6 @@ impl Exchange for GateExchange {
             "tif": "ioc",
         });
 
-        println!("params - {:?}", params);
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

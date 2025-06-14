@@ -39,8 +39,12 @@ impl OrderManager {
         }
     }
 
-    pub fn get_open_positions(&self) -> &DashMap<String, HashMap<ExchangeName, Position>> {
-        &self.open_positions
+    pub fn get_open_position_count(&self) -> usize {
+        self.open_positions.len()
+    }
+
+    pub fn get_open_positions(&self) -> Arc<DashMap<String, HashMap<ExchangeName, Position>>> {
+        self.open_positions.clone()
     }
 
     pub fn has_open_position(&self, symbol: &str) -> bool {

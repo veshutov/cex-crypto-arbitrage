@@ -135,7 +135,7 @@ impl Exchange for BybitExchange {
         let mut ping_rc: Receiver<&'static str> = ping().await;
 
         tokio::spawn(async move {
-            loop {
+            'worker: loop {
                 // Ping
                 if let Ok(ping) = ping_rc.try_recv() {
                     exchange_wr
@@ -206,6 +206,9 @@ impl Exchange for BybitExchange {
                             break;
                         }
                     }
+                } else {
+                    println!("Exiting bybit worker");
+                    break 'worker;
                 }
             }
         });
@@ -234,7 +237,7 @@ impl Exchange for BybitExchange {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        let recv_window = 5000;
+        let recv_window = 2000;
         let signature = self.generate_signature(timestamp, recv_window, &params.to_string());
 
         let response = self

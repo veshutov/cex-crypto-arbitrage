@@ -19,7 +19,7 @@ pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
         let now: Instant = Instant::now();
         let _opportunities = check_arbitrage_opportunities(&cfg).await?;
         let elapsed = now.elapsed();
-        println!("Check duration: {:.2?}", elapsed);
+        // println!("Check duration: {:.2?}", elapsed);
         sleep(Duration::from_secs(5)).await;
     }
 }
@@ -32,6 +32,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
     let symbols_to_skip = ["NEIRO", "ANIME", "SCA", "AXL"];
+    let symbols = ["XEM", "AIOT"];
 
     // Get all tickers with prices from both exchanges
     let mut all_tickers_map: HashMap<String, Vec<(ExchangeName, TickerData, ExchangeConfig)>> =
@@ -46,7 +47,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     let ticker_results = join_all(ticker_futures).await;
     let elapsed = now.elapsed();
     
-    println!("Exchanges requests duration: {:.2?}", elapsed);
+    // println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
         let tickers = result?;
@@ -65,13 +66,13 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         }
     }
 
-    println!(
-        "tickers on both exchanges: {:?}",
-        all_tickers_map
-            .iter()
-            .filter(|(_, tickers)| tickers.len() > 1)
-            .count()
-    );
+    // println!(
+    //     "tickers on both exchanges: {:?}",
+    //     all_tickers_map
+    //         .iter()
+    //         .filter(|(_, tickers)| tickers.len() > 1)
+    //         .count()
+    // );
 
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -169,13 +170,13 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
 
     opportunities
         .iter()
+        // .filter(|o| symbols.contains(&o.symbol.as_str()))
         // .filter(|o| !esymbols_to_skip.contains(&o.symbol.as_str()))
         // .take(10)
         .for_each(|o| {
             println!(
-                "rest: {} – {} ({:.2}), buy: {:?}, sell: {:?}",
+                "rest: {} – {:.2}, buy: {:?}, sell: {:?}",
                 o.symbol,
-                o.profit_per_unit,
                 o.net_profit_percentage,
                 o.buy_exchange,
                 o.sell_exchange

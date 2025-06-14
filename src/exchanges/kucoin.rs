@@ -158,7 +158,7 @@ impl Exchange for KucoinExchange {
         let mut ping_rc = ping(ping_interval_ms as u64).await;
 
         tokio::spawn(async move {
-            loop {
+            'worker: loop {
                 // Ping
                 if let Some(ping) = ping_rc.recv().await {
                     exchange_wr
@@ -225,6 +225,9 @@ impl Exchange for KucoinExchange {
                             break;
                         }
                     }
+                } else {
+                    println!("Exiting kucoin worker");
+                    break 'worker;
                 }
             }
         });

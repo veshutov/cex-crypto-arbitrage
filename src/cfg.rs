@@ -8,6 +8,7 @@ pub struct Configuration {
     /// The environment in which to run the application.
     pub env: Environment,
     pub symbol_min_volume_24h: Decimal,
+    pub max_open_positions: usize,
     pub order_book_max_age_ms: u64,
     pub min_open_profit_percentage: Decimal,
     pub max_close_profit_percentage: Decimal,
@@ -59,6 +60,10 @@ impl Configuration {
         let max_position_value = env_var("MAX_POSITION_VALUE")
             .parse::<Decimal>()
             .expect("Unable to parse the value of the MAX_POSITION_VALUE environment variable. Please make sure it is a valid decimal.");
+
+        let max_open_positions = env_var("MAX_OPEN_POSITIONS")
+            .parse::<usize>()
+            .expect("Unable to parse the value of the MAX_OPEN_POSITIONS environment variable. Please make sure it is a valid number.");
 
         let bybit = ExchangeConfig {
             api_key: env_var("BYBIT_API_KEY"),
@@ -164,6 +169,7 @@ impl Configuration {
             max_close_profit_percentage,
             min_position_value,
             max_position_value,
+            max_open_positions,
             bybit,
             kucoin,
             bingx,

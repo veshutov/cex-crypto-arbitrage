@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::{
     engine::{
@@ -22,6 +22,7 @@ pub mod order_manager;
 
 #[derive(Debug, Clone)]
 pub struct ArbitrageEngineConfig {
+    pub max_open_positions: usize,
     pub order_book_max_age_ms: u64,
     pub min_open_profit_percentage: Decimal,
     pub max_close_profit_percentage: Decimal,
@@ -51,11 +52,9 @@ impl ArbitrageEngine {
         }
     }
 
-    pub async fn start_processing(
-        &mut self,
-        symbols: Vec<String>,
-    ) -> Result<()> {
+    pub async fn start_processing(&mut self, symbols: Vec<String>) -> Result<JoinHandle<()>> {
         self.order_manager.load_positions().await?;
+        println!("Fetched opened positions");
 
         let (arbitrage_tx, arbitrage_rx) = mpsc::unbounded_channel::<ArbitrageEvent>();
 
@@ -70,29 +69,29 @@ impl ArbitrageEngine {
             .collect();
 
         let mut order_book_receiver = self.exchange_gateway.subscribe_to_symbols(symbols).await?;
+        println!("Subscribed to order book updates");
 
         tokio::spawn(async move {
-            while let Some(order_book) = order_book_receiver.recv().await {
+            'worker: while let Some(order_book) = order_book_receiver.recv().await {
                 let symbol = order_book.symbol.clone();
                 let update_result = market_data.update_order_book(order_book);
 
                 if update_result == UpdateResult::Updated {
-                    let open_positions = order_manager.get_open_positions();
-                    if let Some(positions) = open_positions.get(&symbol) {
+                    if let Some(positions) = order_manager.get_open_positions().get(&symbol) {
                         // check for position close
-                        let buy_exchange = positions
+                        let buy_position = positions
                             .iter()
                             .find(|p| p.1.side == OrderSide::Buy)
                             .unwrap();
-                        let sell_exchange = positions
+                        let sell_position = positions
                             .iter()
                             .find(|p| p.1.side == OrderSide::Sell)
                             .unwrap();
 
                         let buy_order_book =
-                            market_data.get_order_book(buy_exchange.0, &symbol).unwrap();
+                            market_data.get_order_book(buy_position.0, &symbol).unwrap();
                         let sell_order_book = market_data
-                            .get_order_book(sell_exchange.0, &symbol)
+                            .get_order_book(sell_position.0, &symbol)
                             .unwrap();
 
                         if let Some(opportunity) = find_arbitrage_opportunity(
@@ -103,22 +102,24 @@ impl ArbitrageEngine {
                         )
                         .await
                         {
+                            let position_size = buy_position.1.size.min(sell_position.1.size);
+                            let opportunity_quantity =
+                                opportunity.max_quantity.trunc().to_i32().unwrap();
                             if opportunity.net_profit_percentage
                                 < config.max_close_profit_percentage
+                                && opportunity_quantity > position_size
                             {
                                 match arbitrage_tx.send(ArbitrageEvent {
-                                    opportunity,
+                                    opportunity: opportunity.clone(),
                                     action: ArbitrageOpportunityAction::Close,
                                 }) {
                                     Ok(_) => {
-                                        println!("Close event sent {:?}", symbol)
+                                        println!("Close event sent {:?}", opportunity.symbol)
                                     }
                                     Err(e) => {
-                                        println!(
-                                            "Engine receiver has been dropped, exit the loop {:?}",
-                                            e
-                                        );
-                                        break;
+                                        println!("Exiting engine order book worker {:?}", e);
+                                        order_book_receiver.close();
+                                        break 'worker;
                                     }
                                 }
                             }
@@ -136,20 +137,18 @@ impl ArbitrageEngine {
                             for opportunity in opportunities {
                                 if opportunity.net_profit_percentage
                                     > config.min_open_profit_percentage
+                                    && order_manager.get_open_position_count()
+                                        < config.max_open_positions
                                 {
                                     match arbitrage_tx.send(ArbitrageEvent {
-                                        opportunity,
+                                        opportunity: opportunity.clone(),
                                         action: ArbitrageOpportunityAction::Open,
                                     }) {
-                                        Ok(_) => {
-                                            println!("Open event sent {:?}", symbol)
-                                        }
+                                        Ok(_) => {}
                                         Err(e) => {
-                                            println!(
-                                            "Engine receiver has been dropped, exit the loop {:?}",
-                                            e
-                                        );
-                                            break;
+                                            println!("Exiting engine order book worker {:?}", e);
+                                            order_book_receiver.close();
+                                            break 'worker;
                                         }
                                     }
                                 }
@@ -160,28 +159,38 @@ impl ArbitrageEngine {
             }
         });
 
-        self.process_arbitrage_events(arbitrage_rx).await?;
+        let future = self.process_arbitrage_events(arbitrage_rx).await;
+        println!("Started arbitrage events processor");
 
-        Ok(())
+        Ok(future)
     }
 
     async fn process_arbitrage_events(
         &self,
         mut arbitrage_rc: mpsc::UnboundedReceiver<ArbitrageEvent>,
-    ) -> Result<()> {
+    ) -> JoinHandle<()> {
         let order_manager = self.order_manager.clone();
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            while let Some(arbitrage_event) = arbitrage_rc.recv().await {
+            'worker: while let Some(arbitrage_event) = arbitrage_rc.recv().await {
                 let opportunity = arbitrage_event.opportunity;
                 match arbitrage_event.action {
                     ArbitrageOpportunityAction::Close => {
                         if order_manager.has_open_position(&opportunity.symbol) {
-                            order_manager
-                                .close_positions(&opportunity)
-                                .await
-                                .unwrap();
+                            match order_manager.close_positions(&opportunity).await {
+                                Ok(_) => {
+                                    println!("Closed positions for {:?}", opportunity);
+                                }
+                                Err(e) => {
+                                    println!(
+                                        "Error closing positions, exiting worker {:?} {}",
+                                        opportunity, e
+                                    );
+                                    arbitrage_rc.close();
+                                    break 'worker;
+                                }
+                            };
                         }
                     }
                     ArbitrageOpportunityAction::Open => {
@@ -190,6 +199,7 @@ impl ArbitrageEngine {
                             let position_value = opportunity.max_quantity * price;
 
                             if position_value < config.min_position_value {
+                                println!("Not enough volume for {:?}", opportunity.symbol);
                                 continue;
                             }
 
@@ -202,17 +212,24 @@ impl ArbitrageEngine {
                                 opportunity.max_quantity.trunc().to_i32().unwrap()
                             };
 
-                            order_manager
-                                .place_orders(&opportunity, quantity)
-                                .await
-                                .unwrap();
+                            match order_manager.place_orders(&opportunity, quantity).await {
+                                Ok(_) => {
+                                    println!("Placed orders for {}, {:?}", quantity, opportunity);
+                                }
+                                Err(e) => {
+                                    println!(
+                                        "Error placing orders, exiting worker {} {:?} {}",
+                                        quantity, opportunity, e
+                                    );
+                                    arbitrage_rc.close();
+                                    break 'worker;
+                                }
+                            };
                         }
                     }
                 }
             }
-        });
-
-        Ok(())
+        })
     }
 }
 
