@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use futures::future::join_all;
@@ -31,7 +31,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
     ];
-    // let symbols_to_skip = ["NEIRO", "ANIME", "SCA", "AXL"];
+    let symbols_to_skip = HashSet::from(["NEIRO"]);
     // let symbols = ["XEM", "AIOT"];
 
     // Get all tickers with prices from both exchanges
@@ -170,7 +170,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     opportunities
         .iter()
         // .filter(|o| symbols.contains(&o.symbol.as_str()))
-        // .filter(|o| !esymbols_to_skip.contains(&o.symbol.as_str()))
+        .filter(|o| !symbols_to_skip.contains(&o.symbol.as_str()))
         // .take(10)
         .for_each(|o| {
             println!(
