@@ -132,6 +132,29 @@ impl Exchange for KucoinExchange {
         let (ws_stream, _) = connect_async(format!("{}?token={}", ws_endpoint, token)).await?;
         let (mut exchange_wr, mut exchange_rc) = ws_stream.split();
 
+        // Wait for welcome message
+        while let Some(msg) = exchange_rc.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    let data: Value = serde_json::from_str(&text).unwrap();
+                    if data["type"].as_str() == Some("welcome") {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    return Err(ExchangeError::InvalidResponse(format!(
+                        "Error while waiting for kucoin welcome message: {:?}",
+                        e
+                    )));
+                }
+                _ => {
+                    return Err(ExchangeError::InvalidResponse(
+                        "Unexpected message type while waiting kucoin for welcome".to_string(),
+                    ));
+                }
+            }
+        }
+
         // Subscribe to order book for each symbol with a unique ID
         let symbol_whitelist = get_symbols_whitelist();
         let symbols = config
@@ -160,7 +183,7 @@ impl Exchange for KucoinExchange {
         tokio::spawn(async move {
             'worker: loop {
                 // Ping
-                if let Some(ping) = ping_rc.recv().await {
+                if let Ok(ping) = ping_rc.try_recv() {
                     exchange_wr
                         .send(Message::Text(ping.into()))
                         .await
@@ -210,6 +233,7 @@ impl Exchange for KucoinExchange {
                                     exchange_name: ExchangeName::Kucoin,
                                 };
                                 if sender.send(orderbook).is_err() {
+                                    println!("Rx dropped, exiting kucoin worker");
                                     break; // Receiver dropped
                                 }
                             }

@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use tokio::task::JoinHandle;
+use tokio::{task::JoinHandle, time::sleep};
 use ulid::Ulid;
 
 use crate::{
@@ -17,13 +17,15 @@ use crate::{
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
     let symbols = vec![
+        "AIOT".to_string(),
+        "T".to_string(),
+        "OMG".to_string(),
+        "AXL".to_string(),
+
         // "XEM".to_string(),
-        // "AXL".to_string(),
-        // "T".to_string(),
         // "TGT".to_string(),
         // "SCA".to_string(),
-        // "OMG".to_string(),
-        "RDO".to_string(),
+        // "RDO".to_string(),
 
         // "ANIME".to_string(),
         // "ORBS".to_string(),
@@ -35,9 +37,9 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
     // println!("op - {:?}", op);
     let exchanges: Vec<Box<dyn Exchange>> = vec![
         // Box::new(BybitExchange::new(cfg.bybit.clone())),
-        // Box::new(KucoinExchange::new(cfg.kucoin.clone())),
-        Box::new(GateExchange::new(cfg.gate.clone())),
-        Box::new(BingxExchange::new(cfg.bingx.clone())),
+        Box::new(KucoinExchange::new(cfg.kucoin.clone())),
+        // Box::new(GateExchange::new(cfg.gate.clone())),
+        // Box::new(BingxExchange::new(cfg.bingx.clone())),
     ];
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
@@ -60,8 +62,8 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
     //         ExchangeName::Kucoin,
     //         OrderRequest {
     //             id: Ulid::new().to_string(),
-    //             symbol: "XEM".to_string(),
-    //             quantity: 4000,
+    //             symbol: "T".to_string(),
+    //             quantity: 9,
     //             side: crate::exchanges::OrderSide::Sell,
     //         },
     //     )
@@ -90,5 +92,13 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
         order_manager.clone(),
         engine_config,
     );
+
+    tokio::spawn(async move {
+        loop {
+            println!("{}", market_data.get_best_prices());
+            sleep(Duration::from_secs(10)).await;
+        }
+    });
+
     engine.start_processing(symbols.clone()).await
 }

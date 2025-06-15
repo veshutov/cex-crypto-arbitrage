@@ -208,7 +208,7 @@ impl Exchange for BybitExchange {
                         }
                     }
                 } else {
-                    println!("Exiting bybit worker");
+                    println!("Rx dropped, exiting bybit worker");
                     break 'worker;
                 }
             }

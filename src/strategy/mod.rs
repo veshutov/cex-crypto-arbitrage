@@ -1,2 +1,2 @@
-pub mod arbitrage_rest;
-pub mod arbitrage_ws;
+pub mod rest;
+pub mod ws;

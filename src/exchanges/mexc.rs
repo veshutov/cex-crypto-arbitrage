@@ -61,6 +61,10 @@ impl Exchange for Mexc {
                 let best_ask = item["ask1"].to_string().parse::<Decimal>().ok()?;
                 let volume_24h = item["volume24"].to_string().parse::<Decimal>().ok()?;
 
+                if !symbol.contains("USDT") {
+                    return None;
+                }
+
                 Some(TickerData {
                     symbol: symbol.to_string(),
                     best_bid_price: best_bid,

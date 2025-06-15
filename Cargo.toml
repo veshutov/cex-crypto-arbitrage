@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.45.1", features = ["full"] }
-tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
 reqwest = { version = "0.12.20", default-features = false, features = [
     "json",
     "rustls-tls",
@@ -21,6 +21,7 @@ async-trait = "0.1.88"
 futures = "0.3.31"
 rust_decimal = "1.37.2"
 rust_decimal_macros = "1.37.1"
+chrono = "0.4.41"
 hmac = "0.12.1"
 sha2 = "0.10.9"
 base64 = "0.22.1"

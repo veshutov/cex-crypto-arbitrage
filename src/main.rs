@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::strategy::{
-    arbitrage_rest::start_arbitrage_checker_rest, arbitrage_ws::start_arbitrage_checker_ws,
+    rest::start_arbitrage_checker_rest, ws::start_arbitrage_checker_ws,
 };
 
 pub mod cfg;

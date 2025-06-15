@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::exchanges::{
-    Exchange, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse, OrderSide,
+    Exchange, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
     Position, SubscriptionConfig,
 };
 

@@ -34,12 +34,12 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
-        // Box::new(Bitget::new(cfg.bitget.clone())),
-        // Box::new(Mexc::new(cfg.mexc.clone())),
-        // Box::new(Htx::new(cfg.htx.clone())),
+        Box::new(Bitget::new(cfg.bitget.clone())),
+        Box::new(Mexc::new(cfg.mexc.clone())),
+        Box::new(Htx::new(cfg.htx.clone())),
         Box::new(BingxExchange::new(cfg.bingx.clone())),
     ];
-    let symbols_to_skip = HashSet::from(["NEIRO"]);
+    let symbols_to_skip = HashSet::from(["NEIRO", "TRUMP"]);
     // let symbols = ["XEM", "AIOT"];
 
     // Get all tickers with prices from both exchanges
@@ -56,7 +56,7 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
     for res in ticker_results.iter() {
         match res {
             Ok(tickers) => {
-                println!("tickers size {:?}", tickers.len());
+                // println!("tickers size {:?}", tickers.len());
             },
             Err(e) => {
                 println!("tickers error {:?}", e);
@@ -210,10 +210,14 @@ fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {
         ExchangeName::Bybit => convert_bybit_symbol(symbol),
         ExchangeName::Kucoin => convert_kucoin_symbol(symbol),
         ExchangeName::Gate => convert_gate_symbol(symbol),
-        ExchangeName::Bitget => symbol.strip_suffix("USDT").unwrap_or(&symbol).to_string(),
-        ExchangeName::Mexc => symbol.strip_suffix("_USDT").unwrap_or(&symbol).to_string(),
-        ExchangeName::Htx => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
-        ExchangeName::Bingx => symbol.strip_suffix("-USDT").unwrap_or(&symbol).to_string(),
+        ExchangeName::Bitget => symbol.strip_suffix("USDT").unwrap().to_string(),
+        ExchangeName::Mexc => {
+            symbol.replace("\"", "").strip_suffix("_USDT").unwrap().to_string()
+        },
+        ExchangeName::Htx => symbol.strip_suffix("-USDT").unwrap().to_string(),
+        ExchangeName::Bingx => {
+            symbol.strip_suffix("-USDT").unwrap().to_string()
+        },
     }
 }
 

@@ -134,7 +134,11 @@ impl Exchange for BingxExchange {
                 let symbol = item["symbol"].as_str()?;
                 let best_bid = item["price"].as_str()?.parse::<Decimal>().ok()?;
                 let best_ask = item["price"].as_str()?.parse::<Decimal>().ok()?;
-                let volume_24h = Decimal::from(10);
+                let volume_24h = Decimal::from(1000001);
+
+                if !symbol.contains("USDT") {
+                    return None;
+                }
 
                 Some(TickerData {
                     symbol: symbol.to_string(),

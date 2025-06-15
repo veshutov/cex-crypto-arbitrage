@@ -169,6 +169,7 @@ impl Exchange for GateExchange {
                                 };
 
                                 if sender.send(orderbook).is_err() {
+                                    println!("Rx dropped, exiting gate worker");
                                     break; // Receiver dropped
                                 }
                             }
@@ -183,7 +184,7 @@ impl Exchange for GateExchange {
                         }
                     }
                 } else {
-                    println!("Rx dropped, exiting gate worker");
+                    println!("Connection dropped, exiting gate worker");
                     break 'worker;
                 }
             }
@@ -383,7 +384,6 @@ fn to_exchange_amount(symbol: &str, amount: i32) -> i32 {
         "TGT" => amount / 10,
         "OMG" => amount,
         "XEM" => amount,
-        "ZKJ" => amount,
         "SCA" => amount,
         _ => panic!("Unknown gate token {}", symbol)
     }
@@ -398,7 +398,6 @@ fn from_exchange_amount(symbol: &str, amount: i64) -> i32 {
         "TGT" => amount * 10,
         "OMG" => amount,
         "XEM" => amount,
-        "ZKJ" => amount,
         "SCA" => amount,
         _ => panic!("Unknown gate token {}", symbol)
     };
