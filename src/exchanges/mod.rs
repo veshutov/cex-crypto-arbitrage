@@ -38,9 +38,7 @@ pub trait Exchange: Send + Sync {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError>;
     async fn close_position(
         &self,
-        order_id: &str,
-        symbol: &str,
-        place_order_side: OrderSide,
+        position: &Position,
     ) -> Result<OrderResponse, ExchangeError>;
     async fn get_open_positions(&self) -> Result<Vec<Position>, ExchangeError>;
 }

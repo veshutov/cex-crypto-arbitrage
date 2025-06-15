@@ -87,9 +87,7 @@ impl Exchange for Mexc {
 
     async fn close_position(
         &self,
-        _order_id: &str,
-        _symbol: &str,
-        _place_order_side: crate::exchanges::OrderSide,
+        _position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
         todo!("Implement MEXC close position")
     }

@@ -86,9 +86,7 @@ impl Exchange for Bitget {
 
     async fn close_position(
         &self,
-        _order_id: &str,
-        _symbol: &str,
-        _place_order_side: crate::exchanges::OrderSide,
+        _position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
         todo!("Implement Bitget close position")
     }

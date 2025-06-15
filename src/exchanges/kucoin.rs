@@ -248,6 +248,7 @@ impl Exchange for KucoinExchange {
             "clientOid": order.id,
             "symbol": self.map_to_exchange_symbol(&order.symbol),
             "side": side,
+            "marginMode": "CROSS",
             "type": "market",
             "size": order.quantity,
             "leverage": 1,
@@ -292,16 +293,14 @@ impl Exchange for KucoinExchange {
 
     async fn close_position(
         &self,
-        order_id: &str,
-        symbol: &str,
-        _side: OrderSide,
+        position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api-futures.kucoin.com/api/v1/orders";
         let endpoint = "/api/v1/orders";
 
         let params = serde_json::json!({
-            "clientOid": order_id,
-            "symbol": self.map_to_exchange_symbol(symbol),
+            "clientOid": Ulid::new().to_string(),
+            "symbol": self.map_to_exchange_symbol(&position.symbol),
             "type": "market",
             "closeOrder": true,
             "reduceOnly": true,

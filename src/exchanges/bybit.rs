@@ -12,6 +12,7 @@ use tokio::{
     time::sleep,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use ulid::Ulid;
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
@@ -269,21 +270,19 @@ impl Exchange for BybitExchange {
 
     async fn close_position(
         &self,
-        order_id: &str,
-        symbol: &str,
-        side: OrderSide,
+        position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api.bybit.com/v5/order/create";
 
-        let order_side = match side {
+        let order_side = match position.side {
             OrderSide::Buy => "Sell", // If we're long, we need to sell to close
             OrderSide::Sell => "Buy", // If we're short, we need to buy to close
         };
 
         let params = serde_json::json!({
-            "orderLinkId": order_id,
+            "orderLinkId": Ulid::new().to_string(),
             "category": "linear",
-            "symbol": self.map_to_exchange_symbol(symbol),
+            "symbol": self.map_to_exchange_symbol(&position.symbol),
             "side": order_side,
             "orderType": "Market",
             "qty": "0",

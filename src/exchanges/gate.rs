@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashSet;
 
 use async_trait::async_trait;
@@ -10,6 +11,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha512};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use ulid::Ulid;
 
 use crate::exchanges::{
     Exchange, ExchangeConfig, ExchangeError, ExchangeName, OrderBook, OrderRequest, OrderResponse,
@@ -46,14 +48,6 @@ impl GateExchange {
             .expect("HMAC can take key of any size");
         mac.update(message.as_bytes());
         hex::encode(mac.finalize().into_bytes())
-    }
-
-    fn map_to_exchange_symbol(&self, symbol: &str) -> String {
-        format!("{}_USDT", symbol)
-    }
-
-    fn map_from_exchange_symbol(&self, symbol: &str) -> String {
-        symbol.strip_suffix("_USDT").unwrap().to_string()
     }
 }
 
@@ -122,7 +116,7 @@ impl Exchange for GateExchange {
         let symbols = config
             .symbols
             .iter()
-            .map(|symbol| self.map_to_exchange_symbol(symbol))
+            .map(|symbol| to_exchange_symbol(symbol))
             .filter(|s| symbol_whitelist.contains(s))
             .collect::<Vec<String>>();
         if symbols.is_empty() {
@@ -146,22 +140,21 @@ impl Exchange for GateExchange {
                         Ok(Message::Text(text)) => {
                             let data: Value = serde_json::from_str(&text).unwrap();
                             if let Value::String(_) = data["result"]["s"] {
-                                let symbol =
-                                    data["result"]["s"].as_str().unwrap().replace("_USDT", "");
+                                let symbol = from_exchange_symbol(data["result"]["s"].as_str().unwrap());
 
                                 let best_ask_price = data["result"]["a"]
                                     .as_str()
                                     .unwrap()
                                     .parse::<Decimal>()
                                     .unwrap();
-                                let best_ask_amount = data["result"]["A"].as_i64().unwrap().into();
+                                let best_ask_amount = from_exchange_amount(&symbol, data["result"]["A"].as_i64().unwrap()).into();
 
                                 let best_bid_price = data["result"]["b"]
                                     .as_str()
                                     .unwrap()
                                     .parse::<Decimal>()
                                     .unwrap();
-                                let best_bid_amount = data["result"]["B"].as_i64().unwrap().into();
+                                let best_bid_amount = from_exchange_amount(&symbol, data["result"]["B"].as_i64().unwrap()).into();
 
                                 let timestamp = data["result"]["t"].as_i64().unwrap() as u64;
 
@@ -174,6 +167,7 @@ impl Exchange for GateExchange {
                                     timestamp,
                                     exchange_name: ExchangeName::Gate,
                                 };
+
                                 if sender.send(orderbook).is_err() {
                                     break; // Receiver dropped
                                 }
@@ -183,13 +177,13 @@ impl Exchange for GateExchange {
                             println!("Error while receiving data from gate {:?}", e);
                             break;
                         }
-                        _ => {
-                            println!("Error while receiving data from gate");
+                        r => {
+                            println!("Error while receiving data from gate {:?}", r);
                             break;
                         }
                     }
                 } else {
-                    println!("Exiting gate worker");
+                    println!("Rx dropped, exiting gate worker");
                     break 'worker;
                 }
             }
@@ -204,13 +198,13 @@ impl Exchange for GateExchange {
 
         // Convert quantity to positive for buy orders and negative for sell orders
         let size = match order.side {
-            OrderSide::Buy => order.quantity,
-            OrderSide::Sell => -order.quantity,
+            OrderSide::Buy => to_exchange_amount(&order.symbol, order.quantity),
+            OrderSide::Sell => -to_exchange_amount(&order.symbol, order.quantity),
         };
 
         let params = serde_json::json!({
             "text": format!("t-{}", order.id),
-            "contract": self.map_to_exchange_symbol(&order.symbol),
+            "contract": to_exchange_symbol(&order.symbol),
             "size": size,
             "price": "0",
             "tif": "ioc",
@@ -258,16 +252,14 @@ impl Exchange for GateExchange {
 
     async fn close_position(
         &self,
-        order_id: &str,
-        symbol: &str,
-        _side: OrderSide,
+        position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
         let url = "/api/v4/futures/usdt/orders";
         let full_url = format!("https://api.gateio.ws{}", url);
 
         let params = serde_json::json!({
-            "text": format!("t-{}", order_id),
-            "contract": self.map_to_exchange_symbol(symbol),
+            "text": format!("t-{}", Ulid::new().to_string()),
+            "contract": to_exchange_symbol(&position.symbol),
             "price": "0",
             "size": 0,
             "tif": "ioc",
@@ -348,16 +340,16 @@ impl Exchange for GateExchange {
             .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
             .iter()
             .map(|item| {
-                let qty = item["size"].as_i64().unwrap() as i32;
+                let qty = item["size"].as_i64().unwrap();
                 let side = if qty > 0 {
                     OrderSide::Buy
                 } else {
                     OrderSide::Sell
                 };
-                let symbol = item["contract"].as_str().unwrap();
+                let symbol = from_exchange_symbol(item["contract"].as_str().unwrap());
                 Position {
-                    symbol: self.map_from_exchange_symbol(symbol),
-                    size: qty.abs(),
+                    size: from_exchange_amount(&symbol, qty.abs()),
+                    symbol,
                     entry_price: item["entry_price"]
                         .as_str()
                         .unwrap()
@@ -372,6 +364,45 @@ impl Exchange for GateExchange {
 
         Ok(positions)
     }
+}
+
+fn to_exchange_symbol(symbol: &str) -> String {
+    format!("{}_USDT", symbol)
+}
+
+fn from_exchange_symbol(symbol: &str) -> String {
+    symbol.strip_suffix("_USDT").unwrap().to_string()
+}
+
+fn to_exchange_amount(symbol: &str, amount: i32) -> i32 {
+    match symbol {
+        "RDO" => amount / 100,
+        "T" => amount / 100,
+        "REX" => amount / 100,
+        "AIOT" => amount / 10,
+        "TGT" => amount / 10,
+        "OMG" => amount,
+        "XEM" => amount,
+        "ZKJ" => amount,
+        "SCA" => amount,
+        _ => panic!("Unknown gate token {}", symbol)
+    }
+}
+
+fn from_exchange_amount(symbol: &str, amount: i64) -> i32 {
+    let a = match symbol {
+        "RDO" => amount * 100,
+        "T" => amount * 100,
+        "REX" => amount * 100,
+        "AIOT" => amount * 10,
+        "TGT" => amount * 10,
+        "OMG" => amount,
+        "XEM" => amount,
+        "ZKJ" => amount,
+        "SCA" => amount,
+        _ => panic!("Unknown gate token {}", symbol)
+    };
+    a as i32
 }
 
 fn get_symbols_whitelist() -> HashSet<String> {

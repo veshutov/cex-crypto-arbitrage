@@ -49,16 +49,13 @@ impl ExchangeGateway {
 
     pub async fn close_position(
         &self,
-        order_id: &str,
-        exchange_name: ExchangeName,
-        symbol: &str,
-        side: OrderSide,
+        position: &Position,
     ) -> Result<OrderResponse, ExchangeError> {
-        let exchange = self.exchanges.get(&exchange_name).ok_or_else(|| {
-            ExchangeError::InvalidResponse(format!("Exchange {:?} not found", exchange_name))
+        let exchange = self.exchanges.get(&position.exchange_name).ok_or_else(|| {
+            ExchangeError::InvalidResponse(format!("Exchange {:?} not found", position.exchange_name))
         })?;
 
-        exchange.close_position(order_id, symbol, side).await
+        exchange.close_position(position).await
     }
 
     pub async fn get_open_positions(

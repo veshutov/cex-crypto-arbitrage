@@ -13,7 +13,7 @@ use crate::{
     exchanges::bitget::Bitget,
     exchanges::mexc::Mexc,
     exchanges::htx::Htx,
-    exchanges::bingx::Bingx,
+    exchanges::bingx::BingxExchange,
     exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
     Config, Result,
 };
@@ -24,7 +24,7 @@ pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
         let _opportunities = check_arbitrage_opportunities(&cfg).await?;
         // let elapsed = now.elapsed();
         // println!("Check duration: {:.2?}", elapsed);
-        sleep(Duration::from_secs(5)).await;
+        sleep(Duration::from_secs(10)).await;
     }
 }
 
@@ -34,10 +34,10 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
-        Box::new(Bitget::new(cfg.bitget.clone())),
-        Box::new(Mexc::new(cfg.mexc.clone())),
-        Box::new(Htx::new(cfg.htx.clone())),
-        Box::new(Bingx::new(cfg.bingx.clone())),
+        // Box::new(Bitget::new(cfg.bitget.clone())),
+        // Box::new(Mexc::new(cfg.mexc.clone())),
+        // Box::new(Htx::new(cfg.htx.clone())),
+        Box::new(BingxExchange::new(cfg.bingx.clone())),
     ];
     let symbols_to_skip = HashSet::from(["NEIRO"]);
     // let symbols = ["XEM", "AIOT"];

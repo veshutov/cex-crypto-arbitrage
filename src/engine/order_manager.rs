@@ -98,6 +98,11 @@ impl OrderManager {
                 .place_order(opportunity.sell_exchange, sell_order)
         );
 
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
         match (buy_result, sell_result) {
             (Ok(_), Ok(_)) => {
                 println!("Orders plased successfully {}", opportunity.symbol);
@@ -111,12 +116,14 @@ impl OrderManager {
                 );
                 if let Err(close_err) = self
                     .exchange_gateway
-                    .close_position(
-                        &Ulid::new().to_string(),
-                        opportunity.buy_exchange,
-                        &opportunity.symbol,
-                        OrderSide::Sell,
-                    )
+                    .close_position(&Position {
+                        symbol: opportunity.symbol.clone(),
+                        size: quantity,
+                        entry_price: opportunity.buy_price,
+                        entry_time: timestamp,
+                        side: OrderSide::Buy,
+                        exchange_name: opportunity.buy_exchange,
+                    })
                     .await
                 {
                     return Err(OrderManagerError::OrderPlacementError {
@@ -137,12 +144,14 @@ impl OrderManager {
                 );
                 if let Err(close_err) = self
                     .exchange_gateway
-                    .close_position(
-                        &Ulid::new().to_string(),
-                        opportunity.sell_exchange,
-                        &opportunity.symbol,
-                        OrderSide::Buy,
-                    )
+                    .close_position(&Position {
+                        symbol: opportunity.symbol.clone(),
+                        size: quantity,
+                        entry_price: opportunity.sell_price,
+                        entry_time: timestamp,
+                        side: OrderSide::Sell,
+                        exchange_name: opportunity.sell_exchange,
+                    })
                     .await
                 {
                     return Err(OrderManagerError::OrderPlacementError {
@@ -164,30 +173,22 @@ impl OrderManager {
 
     pub async fn close_positions(
         &self,
-        opportunity: &ArbitrageOpportunity,
+        positions: &ArbitragePositions,
     ) -> Result<(), OrderManagerError> {
-        let buy_order_id = Ulid::new().to_string();
-        let sell_order_id = Ulid::new().to_string();
-
         let (buy_result, sell_result) = tokio::join!(
-            self.exchange_gateway.close_position(
-                &buy_order_id,
-                opportunity.buy_exchange,
-                &opportunity.symbol,
-                OrderSide::Buy
-            ),
-            self.exchange_gateway.close_position(
-                &sell_order_id,
-                opportunity.sell_exchange,
-                &opportunity.symbol,
-                OrderSide::Sell
-            )
+            self.exchange_gateway
+                .close_position(&positions.buy_position),
+            self.exchange_gateway
+                .close_position(&positions.sell_position)
         );
 
         match (buy_result, sell_result) {
             (Ok(_), Ok(_)) => {
-                println!("Orders closed successfully {}", opportunity.symbol);
-                self.open_positions.remove(&opportunity.symbol);
+                println!(
+                    "Orders closed successfully {}",
+                    positions.buy_position.symbol
+                );
+                self.open_positions.remove(&positions.buy_position.symbol);
                 Ok(())
             }
             (Err(e), _) | (_, Err(e)) => Err(OrderManagerError::PositionCloseError {
@@ -230,4 +231,10 @@ impl OrderManager {
             ]),
         );
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ArbitragePositions {
+    pub buy_position: Position,
+    pub sell_position: Position,
 }
