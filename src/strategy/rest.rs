@@ -34,10 +34,10 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
-        Box::new(Bitget::new(cfg.bitget.clone())),
-        Box::new(Mexc::new(cfg.mexc.clone())),
-        Box::new(Htx::new(cfg.htx.clone())),
         Box::new(BingxExchange::new(cfg.bingx.clone())),
+        // Box::new(Bitget::new(cfg.bitget.clone())),
+        // Box::new(Mexc::new(cfg.mexc.clone())),
+        // Box::new(Htx::new(cfg.htx.clone())),
     ];
     let symbols_to_skip = HashSet::from(["NEIRO", "TRUMP"]);
     // let symbols = ["XEM", "AIOT"];

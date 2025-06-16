@@ -93,6 +93,7 @@ impl Exchange for BybitExchange {
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
                     volume_24h,
+                    multiplier: Decimal::from(1)
                 })
             })
             .collect();
@@ -367,7 +368,7 @@ impl Exchange for BybitExchange {
                 let symbol = item["symbol"].as_str().unwrap();
                 Position {
                     symbol: self.map_from_exchange_symbol(symbol),
-                    size: item["size"].as_str().unwrap().parse::<i32>().unwrap(),
+                    size: item["size"].as_str().unwrap().parse::<Decimal>().unwrap(),
                     entry_price: item["avgPrice"]
                         .as_str()
                         .unwrap()

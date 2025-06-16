@@ -17,29 +17,43 @@ use crate::{
 
 pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
     let symbols = vec![
-        "AIOT".to_string(),
-        "T".to_string(),
+        "QUICK".to_string(),
+        "FUEL".to_string(),
+        "MEMEFI".to_string(),
+        "HSK".to_string(),
+        "GTC".to_string(),
+        "TGT".to_string(),
         "OMG".to_string(),
-        "AXL".to_string(),
-
-        // "XEM".to_string(),
-        // "TGT".to_string(),
-        // "SCA".to_string(),
-        // "RDO".to_string(),
-
+        "DARK".to_string(),
+        "MAGIC".to_string(),
+        "T".to_string(),
+        "SCA".to_string(),
+        "B2".to_string(),
+        "ARPA".to_string(),
+        "IDOL".to_string(),
+        "SKATE".to_string(),
+        "FLOCK".to_string(),
+        "ALT".to_string(),
+        // "AXL".to_string(),
+        
         // "ANIME".to_string(),
         // "ORBS".to_string(),
-        // "ULTI".to_string(),
-        // "RSS3".to_string(), – на gate они по 10шт лот
-        // "REX".to_string(), – на gate они по 100шт лот
+        // "AIOT".to_string(), - быстро скачет туда сюда
+        // "ULTI".to_string(), - быстро скачет туда сюда
+        // "FORM".to_string(), - быстро скачет туда сюда
+        // "REX".to_string(), - быстро скачет туда сюда
+        // "ZKJ".to_string(), – делистинг
+        // "XEM".to_string(), – спред не сужается
+        // "RDO".to_string(), – спред не сужается
+        // "RSS3".to_string(), – спред не сужается
     ];
     // let op = bingx.get_open_positions().await;
     // println!("op - {:?}", op);
     let exchanges: Vec<Box<dyn Exchange>> = vec![
-        // Box::new(BybitExchange::new(cfg.bybit.clone())),
+        Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
-        // Box::new(GateExchange::new(cfg.gate.clone())),
-        // Box::new(BingxExchange::new(cfg.bingx.clone())),
+        Box::new(GateExchange::new(cfg.gate.clone())),
+        Box::new(BingxExchange::new(cfg.bingx.clone())),
     ];
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
@@ -93,12 +107,12 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
         engine_config,
     );
 
-    tokio::spawn(async move {
-        loop {
-            println!("{}", market_data.get_best_prices());
-            sleep(Duration::from_secs(10)).await;
-        }
-    });
+    // tokio::spawn(async move {
+    //     loop {
+    //         println!("{}", market_data.get_best_prices());
+    //         sleep(Duration::from_secs(10)).await;
+    //     }
+    // });
 
     engine.start_processing(symbols.clone()).await
 }

@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use rust_decimal::Decimal;
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use ulid::Ulid;
@@ -76,7 +77,7 @@ impl OrderManager {
     pub async fn place_orders(
         &self,
         opportunity: &ArbitrageOpportunity,
-        quantity: i32,
+        quantity: Decimal,
     ) -> Result<(), OrderManagerError> {
         let buy_order = OrderRequest {
             id: Ulid::new().to_string(),
@@ -197,7 +198,7 @@ impl OrderManager {
         }
     }
 
-    fn record_position(&self, opportunity: &ArbitrageOpportunity, quantity: i32) {
+    fn record_position(&self, opportunity: &ArbitrageOpportunity, quantity: Decimal) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

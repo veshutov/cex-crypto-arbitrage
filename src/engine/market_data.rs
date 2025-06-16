@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::atomic::AtomicPtr, sync::Arc, fmt};
 
-use chrono::{TimeZone, Utc, DateTime};
+use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 
 use crate::exchanges::{ExchangeName, OrderBook};

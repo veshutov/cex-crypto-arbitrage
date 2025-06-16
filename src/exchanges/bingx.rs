@@ -145,6 +145,7 @@ impl Exchange for BingxExchange {
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
                     volume_24h,
+                    multiplier: Decimal::from(1),
                 })
             })
             .collect();
@@ -368,8 +369,8 @@ impl Exchange for BingxExchange {
                 let size = item["positionAmt"]
                     .as_str()
                     .unwrap()
-                    .parse::<f32>()
-                    .unwrap() as i32;
+                    .parse::<Decimal>()
+                    .unwrap();
                 let position_side = item["positionSide"].as_str().unwrap();
                 let side = if position_side == "LONG" {
                     OrderSide::Buy

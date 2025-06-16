@@ -45,7 +45,7 @@ pub async fn find_arbitrage_opportunity(
     ))
 }
 
-pub async fn find_arbitrage_opportunities(
+pub fn find_arbitrage_opportunities(
     market_data: &crate::engine::market_data::MarketData,
     exchange_configs: &HashMap<ExchangeName, ExchangeConfig>,
     symbol: &str,

@@ -65,6 +65,7 @@ impl Exchange for Bitget {
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
                     volume_24h,
+                    multiplier: Decimal::from(1),
                 })
             })
             .collect();

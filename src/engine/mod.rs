@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use tokio::{sync::mpsc, task::JoinHandle};
 
@@ -103,11 +102,9 @@ impl ArbitrageEngine {
                         .await
                         {
                             let position_size = buy_position.1.size.min(sell_position.1.size);
-                            let opportunity_quantity =
-                                opportunity.max_quantity.trunc().to_i32().unwrap();
                             if opportunity.net_profit_percentage
                                 < config.max_close_profit_percentage
-                                && opportunity_quantity > position_size
+                                && opportunity.max_quantity > position_size
                             {
                                 match arbitrage_tx.send(ArbitrageAction::ClosePosition(
                                     ArbitragePositions {
@@ -131,9 +128,7 @@ impl ArbitrageEngine {
                             &exchange_configs,
                             &symbol,
                             config.order_book_max_age_ms,
-                        )
-                        .await
-                        {
+                        ) {
                             for opportunity in opportunities {
                                 if opportunity.net_profit_percentage
                                     > config.min_open_profit_percentage
@@ -202,10 +197,8 @@ impl ArbitrageEngine {
                             let quantity = if position_value > config.max_position_value {
                                 (config.max_position_value / price)
                                     .trunc()
-                                    .to_i32()
-                                    .unwrap()
                             } else {
-                                opportunity.max_quantity.trunc().to_i32().unwrap()
+                                opportunity.max_quantity
                             };
 
                             match order_manager.place_orders(&opportunity, quantity).await {

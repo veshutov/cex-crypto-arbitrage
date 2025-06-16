@@ -63,6 +63,7 @@ pub struct TickerData {
     pub best_bid_price: Decimal,
     pub best_ask_price: Decimal,
     pub volume_24h: Decimal,
+    pub multiplier: Decimal,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +88,7 @@ pub struct OrderRequest {
     pub id: String,
     pub symbol: String,
     pub side: OrderSide,
-    pub quantity: i32,
+    pub quantity: Decimal,
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +100,7 @@ pub struct OrderResponse {
 #[derive(Debug, Clone)]
 pub struct Position {
     pub symbol: String,
-    pub size: i32,
+    pub size: Decimal,
     pub entry_price: Decimal,
     pub entry_time: u64,
     pub side: OrderSide,
