@@ -1,5 +1,3 @@
-use std::{collections::HashSet, time::Duration};
-
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use hmac::{Hmac, Mac};
@@ -7,6 +5,7 @@ use reqwest::Client;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
+use std::{collections::HashSet, time::Duration};
 use tokio::{
     sync::mpsc::{self, Receiver},
     time::sleep,
@@ -93,7 +92,7 @@ impl Exchange for BybitExchange {
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
                     volume_24h,
-                    multiplier: Decimal::from(1)
+                    multiplier: Decimal::from(1),
                 })
             })
             .collect();
@@ -269,10 +268,7 @@ impl Exchange for BybitExchange {
         })
     }
 
-    async fn close_position(
-        &self,
-        position: &Position,
-    ) -> Result<OrderResponse, ExchangeError> {
+    async fn close_position(&self, position: &Position) -> Result<OrderResponse, ExchangeError> {
         let url = "https://api.bybit.com/v5/order/create";
 
         let order_side = match position.side {

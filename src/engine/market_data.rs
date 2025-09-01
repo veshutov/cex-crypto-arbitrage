@@ -1,7 +1,4 @@
-use std::{collections::HashMap, sync::atomic::AtomicPtr, sync::Arc, fmt};
-
-use chrono::{TimeZone, Utc};
-use rust_decimal::Decimal;
+use std::{collections::HashMap, sync::atomic::AtomicPtr, sync::Arc};
 
 use crate::exchanges::{ExchangeName, OrderBook};
 
@@ -87,23 +84,6 @@ impl MarketData {
 
         result
     }
-
-    pub fn get_best_prices(&self) -> BestPricesResult {
-        let mut result = HashMap::new();
-        
-        for (exchange, symbol_map) in self.exchange_books.iter() {
-            for (symbol, quote_ptr) in symbol_map.iter() {
-                let order_book = unsafe { &*quote_ptr.load(std::sync::atomic::Ordering::Acquire) };
-                
-                result
-                    .entry(symbol.clone())
-                    .or_insert_with(Vec::new)
-                    .push((*exchange, order_book.best_ask_price, order_book.best_bid_price, order_book.timestamp));
-            }
-        }
-        
-        BestPricesResult(result)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,19 +91,4 @@ pub enum UpdateResult {
     Updated,
     Duplicate,
     Outdated,
-}
-
-#[derive(Debug)]
-pub struct BestPricesResult(HashMap<String, Vec<(ExchangeName, Decimal, Decimal, u64)>>);
-
-impl fmt::Display for BestPricesResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (symbol, prices) in &self.0 {
-            writeln!(f, "{}:", symbol)?;
-            for (exchange, ask, bid, time) in prices {
-                writeln!(f, "  {:?}: bid={}, ask={}, time={:?}", exchange, bid, ask, Utc.timestamp_millis_opt(*time as i64).single().unwrap().time())?;
-            }
-        }
-        Ok(())
-    }
 }

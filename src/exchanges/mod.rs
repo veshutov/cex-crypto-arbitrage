@@ -7,10 +7,6 @@ pub mod error;
 pub mod gate;
 pub mod gateway;
 pub mod kucoin;
-pub mod bitget;
-pub mod mexc;
-pub mod htx;
-pub mod bingx;
 
 pub use error::*;
 

@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use rust_decimal::Decimal;
+use std::sync::Arc;
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::{
@@ -135,7 +134,8 @@ impl ArbitrageEngine {
                                     && order_manager.get_open_position_count()
                                         < config.max_open_positions
                                 {
-                                    match arbitrage_tx.send(ArbitrageAction::OpenOrder(opportunity)) {
+                                    match arbitrage_tx.send(ArbitrageAction::OpenOrder(opportunity))
+                                    {
                                         Ok(_) => {}
                                         Err(e) => {
                                             println!("Exiting engine order book worker {:?}", e);
@@ -195,8 +195,7 @@ impl ArbitrageEngine {
                             }
 
                             let quantity = if position_value > config.max_position_value {
-                                (config.max_position_value / price)
-                                    .trunc()
+                                (config.max_position_value / price).trunc()
                             } else {
                                 opportunity.max_quantity
                             };
