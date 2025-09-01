@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::strategy::start_arbitrage_strategy;
+use crate::strategy::start_arbitrage_engine;
 
 pub mod cfg;
 pub mod engine;
@@ -16,7 +16,7 @@ async fn main() {
     dotenvy::dotenv().ok();
     let cfg: Config = Arc::new(Configuration::new());
 
-    let main_loop = start_arbitrage_strategy(cfg.clone()).await;
+    let main_loop = start_arbitrage_engine(cfg.clone()).await;
     match main_loop {
         Ok(join_handle) => {
             match join_handle.await {
