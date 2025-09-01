@@ -30,12 +30,12 @@ async fn main() {
                     println!("Exiting main join");
                 }
                 Err(e) => {
-                    println!("Error main join {}", e);
+                    println!("Error main join {e}");
                 }
             };
         }
         Err(e) => {
-            println!("Error starting engine {}", e);
+            println!("Error starting engine {e}");
         }
     };
 }

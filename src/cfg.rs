@@ -195,8 +195,7 @@ impl FromStr for Environment {
             "dev" => Ok(Environment::Development),
             "prod" => Ok(Environment::Production),
             _ => Err(format!(
-                "Invalid environment: {}. Please make sure it is either \"dev\" or \"prod\".",
-                s
+                "Invalid environment: {s}. Please make sure it is either \"dev\" or \"prod\"."
             )),
         }
     }

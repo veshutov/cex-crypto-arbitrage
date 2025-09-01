@@ -1,19 +1,23 @@
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::future::join_all;
 use tokio::time::sleep;
 
 use crate::engine::arbitrage::ArbitrageOpportunity;
+use crate::exchanges::deepcoin::DeepcoinExchange;
+use crate::exchanges::okx::OkxExchange;
+use crate::exchanges::toobit::ToobitExchange;
+use crate::exchanges::xt::XtExchange;
 use crate::{
+    exchanges::bingx::BingxExchange,
+    exchanges::bitget::Bitget,
     exchanges::bybit::BybitExchange,
     exchanges::gate::GateExchange,
-    exchanges::kucoin::KucoinExchange,
-    exchanges::bitget::Bitget,
-    exchanges::mexc::Mexc,
     exchanges::htx::Htx,
-    exchanges::bingx::BingxExchange,
+    exchanges::kucoin::KucoinExchange,
+    exchanges::mexc::Mexc,
     exchanges::{Exchange, ExchangeConfig, ExchangeName, TickerData},
     Config, Result,
 };
@@ -24,7 +28,7 @@ pub async fn start_arbitrage_checker_rest(cfg: Config) -> Result<()> {
         let _opportunities = check_arbitrage_opportunities(&cfg).await?;
         // let elapsed = now.elapsed();
         // println!("Check duration: {:.2?}", elapsed);
-        sleep(Duration::from_secs(10)).await;
+        sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -35,11 +39,15 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
         Box::new(BingxExchange::new(cfg.bingx.clone())),
-        // Box::new(Bitget::new(cfg.bitget.clone())),
-        // Box::new(Mexc::new(cfg.mexc.clone())),
-        // Box::new(Htx::new(cfg.htx.clone())),
+        Box::new(OkxExchange::new(cfg.okx.clone())),
+        Box::new(Bitget::new(cfg.bitget.clone())),
+        Box::new(Mexc::new(cfg.mexc.clone())),
+        Box::new(Htx::new(cfg.htx.clone())),
+        Box::new(ToobitExchange::new(cfg.htx.clone())),
+        Box::new(XtExchange::new(cfg.htx.clone())),
+        Box::new(DeepcoinExchange::new(cfg.htx.clone())),
     ];
-    let symbols_to_skip = HashSet::from(["NEIRO", "TRUMP"]);
+    let symbols_to_skip = HashSet::from(["NEIRO", "TRUMP", "METIS", "ZCX", "LOT", "NEWT", "SAHARA"]);
     // let symbols = ["XEM", "AIOT"];
 
     // Get all tickers with prices from both exchanges
@@ -51,20 +59,20 @@ async fn check_arbitrage_opportunities(cfg: &Config) -> Result<Vec<ArbitrageOppo
         .map(|exchange| async { exchange.get_futures_tickers().await })
         .collect();
 
-    // let now: Instant = Instant::now();
+    let now: Instant = Instant::now();
     let ticker_results = join_all(ticker_futures).await;
     for res in ticker_results.iter() {
         match res {
             Ok(tickers) => {
                 // println!("tickers size {:?}", tickers.len());
-            },
+            }
             Err(e) => {
                 println!("tickers error {:?}", e);
-            },
+            }
         }
     }
-    // let elapsed = now.elapsed();
-    // println!("Exchanges requests duration: {:.2?}", elapsed);
+    let elapsed = now.elapsed();
+    println!("Exchanges requests duration: {:.2?}", elapsed);
 
     for (exchange, result) in exchanges.iter().zip(ticker_results) {
         if result.is_err() {
@@ -210,14 +218,18 @@ fn convert_symbol(symbol: String, exchange: ExchangeName) -> String {
         ExchangeName::Bybit => convert_bybit_symbol(symbol),
         ExchangeName::Kucoin => convert_kucoin_symbol(symbol),
         ExchangeName::Gate => convert_gate_symbol(symbol),
+        ExchangeName::Xt => symbol.strip_suffix("_USDT").unwrap().to_owned(),
+        ExchangeName::Toobit => symbol.strip_suffix("USDT").unwrap().to_owned(),
+        ExchangeName::Okx => symbol.split('-').next().unwrap().to_owned(),
+        ExchangeName::Deepcoin => symbol.split('-').next().unwrap().to_owned(),
         ExchangeName::Bitget => symbol.strip_suffix("USDT").unwrap().to_string(),
-        ExchangeName::Mexc => {
-            symbol.replace("\"", "").strip_suffix("_USDT").unwrap().to_string()
-        },
+        ExchangeName::Mexc => symbol
+            .replace("\"", "")
+            .strip_suffix("_USDT")
+            .unwrap()
+            .to_string(),
         ExchangeName::Htx => symbol.strip_suffix("-USDT").unwrap().to_string(),
-        ExchangeName::Bingx => {
-            symbol.strip_suffix("-USDT").unwrap().to_string()
-        },
+        ExchangeName::Bingx => symbol.strip_suffix("-USDT").unwrap().to_string(),
     }
 }
 

@@ -11,6 +11,10 @@ pub mod bitget;
 pub mod mexc;
 pub mod htx;
 pub mod bingx;
+pub mod okx;
+pub mod toobit;
+pub mod xt;
+pub mod deepcoin;
 
 pub use error::*;
 
@@ -23,6 +27,10 @@ pub enum ExchangeName {
     Mexc,
     Htx,
     Bingx,
+    Okx,
+    Toobit,
+    Xt,
+    Deepcoin,
 }
 
 #[async_trait]

@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::{task::JoinHandle, time::sleep};
+use rust_decimal::Decimal;
 use ulid::Ulid;
 
 use crate::{
@@ -34,11 +35,31 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
         "SKATE".to_string(),
         "FLOCK".to_string(),
         "ALT".to_string(),
+        "DOOD".to_string(),
+        "MDT".to_string(),
+        "OBOL".to_string(),
+        "AIOT".to_string(),
+        "ZRC".to_string(),
+        "AVL".to_string(),
+        "SPK".to_string(),
+        "ZEUS".to_string(),
+        "NC".to_string(),
+        "MASA".to_string(),
+        "FUN".to_string(),
+        "B3".to_string(),
+        "C98".to_string(),
+        "AERGO".to_string(),
+        "OMNI".to_string(),
+        "SUPRA".to_string(),
+        "SNT".to_string(),
+        "GPS".to_string(),
+        "NEWT".to_string(),
+        "DUCK".to_string(),
+        "LPT".to_string(),
         // "AXL".to_string(),
         
         // "ANIME".to_string(),
         // "ORBS".to_string(),
-        // "AIOT".to_string(), - быстро скачет туда сюда
         // "ULTI".to_string(), - быстро скачет туда сюда
         // "FORM".to_string(), - быстро скачет туда сюда
         // "REX".to_string(), - быстро скачет туда сюда
@@ -53,43 +74,12 @@ pub async fn start_arbitrage_checker_ws(cfg: Config) -> Result<JoinHandle<()>> {
         Box::new(BybitExchange::new(cfg.bybit.clone())),
         Box::new(KucoinExchange::new(cfg.kucoin.clone())),
         Box::new(GateExchange::new(cfg.gate.clone())),
-        Box::new(BingxExchange::new(cfg.bingx.clone())),
+        // Box::new(BingxExchange::new(cfg.bingx.clone())),
     ];
 
     let exchange_names: Vec<ExchangeName> = exchanges.iter().map(|e| e.name()).collect();
     let market_data = MarketData::new(&exchange_names, &symbols);
     let exchange_gateway = Arc::new(ExchangeGateway::new(exchanges));
-    // let r = exchange_gateway
-    //     .place_order(
-    //         ExchangeName::Gate,
-    //         OrderRequest {
-    //             id: Ulid::new().to_string(),
-    //             symbol: "XEM".to_string(),
-    //             quantity: 4150,
-    //             side: crate::exchanges::OrderSide::Buy,
-    //         },
-    //     )
-    //     .await;
-    // println!("order - {:?}", r);
-    // let r = exchange_gateway
-    //     .place_order(
-    //         ExchangeName::Kucoin,
-    //         OrderRequest {
-    //             id: Ulid::new().to_string(),
-    //             symbol: "T".to_string(),
-    //             quantity: 9,
-    //             side: crate::exchanges::OrderSide::Sell,
-    //         },
-    //     )
-    //     .await;
-    // println!("order - {:?}", r);
-    // let r = exchange_gateway.close_position(
-    //     &Ulid::new().to_string(),
-    //     ExchangeName::Bingx,
-    //     "WIF",
-    //     crate::exchanges::OrderSide::Buy,
-    // ).await;
-    // println!("order - {:?}", r);
     let order_manager = OrderManager::new(exchange_gateway.clone());
     let engine_config = ArbitrageEngineConfig {
         max_open_positions: cfg.max_open_positions,

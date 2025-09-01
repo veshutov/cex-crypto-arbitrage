@@ -38,7 +38,7 @@ impl KucoinExchange {
     }
 
     async fn upload_tickers(&self) -> Result<(), ExchangeError> {
-        let tickers = self.get_futures_tickers().await?;
+        let tickers = self.get_symbols().await?;
 
         for ticker in tickers {
             self.symbol_multipliers
@@ -67,15 +67,8 @@ impl KucoinExchange {
         mac.update(self.config.api_passphrase.as_ref().unwrap().as_bytes());
         BASE64.encode(mac.finalize().into_bytes())
     }
-}
 
-#[async_trait]
-impl Exchange for KucoinExchange {
-    fn name(&self) -> ExchangeName {
-        ExchangeName::Kucoin
-    }
-
-    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
+    async fn get_symbols(&self) -> Result<Vec<TickerData>, ExchangeError> {
         let response = self
             .client
             .get("https://api-futures.kucoin.com/api/v1/contracts/active")
@@ -108,6 +101,60 @@ impl Exchange for KucoinExchange {
                 let best_ask = Decimal::try_from(item["lastTradePrice"].as_f64().unwrap()).unwrap();
                 let volume_24h = item["volumeOf24h"].to_string().parse::<Decimal>().unwrap();
                 let multiplier = item["multiplier"].to_string().parse::<Decimal>().unwrap();
+
+                Some(TickerData {
+                    symbol: symbol.to_string(),
+                    best_bid_price: best_bid,
+                    best_ask_price: best_ask,
+                    volume_24h,
+                    multiplier,
+                })
+            })
+            .collect();
+
+        Ok(tickers)
+    }
+}
+
+#[async_trait]
+impl Exchange for KucoinExchange {
+    fn name(&self) -> ExchangeName {
+        ExchangeName::Kucoin
+    }
+
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
+        let response = self
+            .client
+            .get("https://api-futures.kucoin.com/api/v1/allTickers")
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        // Check if the response is successful
+        if data["code"].as_str().unwrap_or("") != "200000" {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "API error: {}",
+                data["msg"].as_str().unwrap_or("Unknown error")
+            )));
+        }
+
+        let tickers = data["data"]
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .filter_map(|item| {
+                let symbol = item["symbol"].as_str().unwrap();
+
+                if !symbol.contains("USDT") {
+                    return None;
+                }
+
+                // Parse bid and ask prices
+                let best_bid = item["bestBidPrice"].as_str().unwrap().parse::<Decimal>().unwrap();
+                let best_ask = item["bestAskPrice"].as_str().unwrap().parse::<Decimal>().unwrap();
+                let volume_24h = Decimal::from(10);
+                let multiplier = Decimal::from(1);
 
                 Some(TickerData {
                     symbol: symbol.to_string(),
