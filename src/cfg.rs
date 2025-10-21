@@ -1,12 +1,11 @@
 use rust_decimal::Decimal;
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use crate::exchanges::ExchangeConfig;
 
 pub type Config = Arc<Configuration>;
 
 pub struct Configuration {
-    pub env: Environment,
     pub symbol_min_volume_24h: Decimal,
     pub max_open_positions: usize,
     pub order_book_max_age_ms: u64,
@@ -19,19 +18,9 @@ pub struct Configuration {
     pub gate: ExchangeConfig,
 }
 
-#[derive(Debug)]
-pub enum Environment {
-    Development,
-    Production,
-}
-
 impl Configuration {
     /// Creates a new configuration from environment variables.
     pub fn new() -> Self {
-        let env = env_var("ENV")
-            .parse::<Environment>()
-            .expect("Unable to parse the value of the ENV environment variable. Please make sure it is a valid environment.");
-
         let symbol_min_volume_24h = env_var("SYMBOL_MIN_VOLUME_24H")
             .parse::<Decimal>()
             .expect("Unable to parse the value of the MIN_VOLUME_24H environment variable. Please make sure it is a valid decimal.");
@@ -97,7 +86,6 @@ impl Configuration {
         };
 
         Self {
-            env,
             symbol_min_volume_24h,
             order_book_max_age_ms,
             min_open_profit_percentage,
@@ -115,20 +103,6 @@ impl Configuration {
 impl Default for Configuration {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl FromStr for Environment {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "dev" => Ok(Environment::Development),
-            "prod" => Ok(Environment::Production),
-            _ => Err(format!(
-                "Invalid environment: {}. Please make sure it is either \"dev\" or \"prod\".",
-                s
-            )),
-        }
     }
 }
 

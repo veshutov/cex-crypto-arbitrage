@@ -50,6 +50,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
+name = "arbitrage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64",
+ "chrono",
+ "dashmap",
+ "dotenvy",
+ "flate2",
+ "futures",
+ "hex",
+ "hmac",
+ "reqwest",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "ulid",
+ "uuid",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -548,33 +575,6 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "hft"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64",
- "chrono",
- "dashmap",
- "dotenvy",
- "flate2",
- "futures",
- "hex",
- "hmac",
- "reqwest",
- "rust_decimal",
- "rust_decimal_macros",
- "serde",
- "serde_json",
- "sha2",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "ulid",
- "uuid",
-]
 
 [[package]]
 name = "hmac"
