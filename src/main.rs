@@ -9,13 +9,14 @@ use crate::{
     exchanges::{
         bybit::BybitExchange, gate::GateExchange, gateway::ExchangeGateway, kucoin::KucoinExchange,
         Exchange, ExchangeName,
-    },
+    }, rest::start_arbitrage_checker_rest,
 };
 
 pub mod cfg;
 pub mod engine;
 pub mod error;
 pub mod exchanges;
+pub mod rest;
 
 pub use cfg::*;
 pub use error::*;
@@ -24,6 +25,9 @@ pub use error::*;
 async fn main() {
     dotenvy::dotenv().ok();
     let cfg: Config = Arc::new(Configuration::new());
+
+    // Start arbitrage checker in background
+    tokio::spawn(start_arbitrage_checker_rest(cfg.clone()));
 
     let main_loop = start_arbitrage_engine(cfg.clone()).await;
     match main_loop {
@@ -46,7 +50,7 @@ async fn main() {
 pub async fn start_arbitrage_engine(cfg: Config) -> Result<JoinHandle<()>> {
     let symbols = vec![
       // enter symbols here:
-      // "QUICK".to_string(),
+      "BTC".to_string(),
     ];
 
     let exchanges: Vec<Box<dyn Exchange>> = vec![

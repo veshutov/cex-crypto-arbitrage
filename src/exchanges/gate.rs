@@ -33,7 +33,7 @@ impl GateExchange {
     }
 
     async fn upload_tickers(&self) -> Result<(), ExchangeError> {
-        let tickers: Vec<TickerData> = self.get_futures_tickers().await?;
+        let tickers: Vec<TickerData> = self.get_multiplier().await?;
 
         for ticker in tickers {
             self.symbol_multipliers.insert(from_exchange_symbol(&ticker.symbol), ticker.multiplier);
@@ -59,15 +59,8 @@ impl GateExchange {
         mac.update(message.as_bytes());
         hex::encode(mac.finalize().into_bytes())
     }
-}
 
-#[async_trait]
-impl Exchange for GateExchange {
-    fn name(&self) -> ExchangeName {
-        ExchangeName::Gate
-    }
-
-    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
+    async fn get_multiplier(&self) -> Result<Vec<TickerData>, ExchangeError> {
         let url = "https://api.gateio.ws/api/v4/futures/usdt/contracts";
         let response = self.client.get(url).send().await?;
 
@@ -96,7 +89,53 @@ impl Exchange for GateExchange {
                     symbol: symbol.to_string(),
                     best_bid_price: best_bid,
                     best_ask_price: best_ask,
-                    volume_24h: Decimal::from(10),
+                    volume_24h: Decimal::from(1_000_000),
+                    multiplier,
+                }
+            })
+            .collect();
+
+        Ok(tickers)
+    }
+}
+
+#[async_trait]
+impl Exchange for GateExchange {
+    fn name(&self) -> ExchangeName {
+        ExchangeName::Gate
+    }
+
+    async fn get_futures_tickers(&self) -> Result<Vec<TickerData>, ExchangeError> {
+        let url = "https://api.gateio.ws/api/v4/futures/usdt/tickers";
+        let response = self.client.get(url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::InvalidResponse(format!(
+                "Failed to get tickers: {}",
+                response.status()
+            )));
+        }
+
+        let json: Value = response.json().await?;
+
+        let tickers = json
+            .as_array()
+            .ok_or_else(|| ExchangeError::InvalidResponse("Invalid response format".to_string()))?
+            .iter()
+            .map(|item| {
+                let symbol = item["contract"].as_str().unwrap();
+
+                // Parse bid and ask prices
+                let best_bid = item["highest_bid"].as_str().unwrap().parse::<Decimal>().unwrap();
+                let best_ask = item["lowest_ask"].as_str().unwrap().parse::<Decimal>().unwrap();
+                let volume_24h = item["volume_24h"].as_str().unwrap().parse::<Decimal>().unwrap();
+                let multiplier = self.symbol_multipliers.get(&from_exchange_symbol(symbol)).map(|d| d.to_owned()).unwrap_or(Decimal::ONE);
+
+                TickerData {
+                    symbol: symbol.to_string(),
+                    best_bid_price: best_bid,
+                    best_ask_price: best_ask,
+                    volume_24h,
                     multiplier,
                 }
             })
